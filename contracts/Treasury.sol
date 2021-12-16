@@ -1,4 +1,8 @@
-// SPDX-License-Identifier: MIT
+/**
+ *Submitted for verification at BscScan.com on 2020-11-06
+ */
+
+// File: @openzeppelin/contracts/GSN/Context.sol
 
 pragma solidity ^0.6.0;
 
@@ -97,8 +101,6 @@ contract Ownable is Context {
     }
 }
 
-// File: @openzeppelin/contracts/token/ERC20/IERC20.sol
-
 pragma solidity ^0.6.0;
 
 /**
@@ -187,8 +189,6 @@ interface IERC20 {
         uint256 value
     );
 }
-
-// File: @openzeppelin/contracts/math/SafeMath.sol
 
 pragma solidity ^0.6.0;
 
@@ -359,8 +359,6 @@ library SafeMath {
         return a % b;
     }
 }
-
-// File: @openzeppelin/contracts/utils/Address.sol
 
 pragma solidity ^0.6.2;
 
@@ -541,8 +539,6 @@ library Address {
         }
     }
 }
-
-// File: @openzeppelin/contracts/token/ERC20/ERC20.sol
 
 pragma solidity ^0.6.0;
 
@@ -909,8 +905,6 @@ contract ERC20 is Context, IERC20 {
     ) internal virtual {}
 }
 
-// File: @openzeppelin/contracts/token/ERC20/SafeERC20.sol
-
 pragma solidity ^0.6.0;
 
 /**
@@ -1038,525 +1032,78 @@ library SafeERC20 {
     }
 }
 
-// File: @openzeppelin/contracts/utils/Pausable.sol
+pragma solidity ^0.6.12;
 
-pragma solidity ^0.6.0;
-
-/**
- * @dev Contract module which allows children to implement an emergency stop
- * mechanism that can be triggered by an authorized account.
- *
- * This module is used through inheritance. It will make available the
- * modifiers `whenNotPaused` and `whenPaused`, which can be applied to
- * the functions of your contract. Note that they will not be pausable by
- * simply including this module, only once the modifiers are put in place.
- */
-contract Pausable is Context {
-    /**
-     * @dev Emitted when the pause is triggered by `account`.
-     */
-    event Paused(address account);
-
-    /**
-     * @dev Emitted when the pause is lifted by `account`.
-     */
-    event Unpaused(address account);
-
-    bool private _paused;
-
-    /**
-     * @dev Initializes the contract in unpaused state.
-     */
-    constructor() internal {
-        _paused = false;
-    }
-
-    /**
-     * @dev Returns true if the contract is paused, and false otherwise.
-     */
-    function paused() public view returns (bool) {
-        return _paused;
-    }
-
-    /**
-     * @dev Modifier to make a function callable only when the contract is not paused.
-     *
-     * Requirements:
-     *
-     * - The contract must not be paused.
-     */
-    modifier whenNotPaused() {
-        require(!_paused, "Pausable: paused");
-        _;
-    }
-
-    /**
-     * @dev Modifier to make a function callable only when the contract is paused.
-     *
-     * Requirements:
-     *
-     * - The contract must be paused.
-     */
-    modifier whenPaused() {
-        require(_paused, "Pausable: not paused");
-        _;
-    }
-
-    /**
-     * @dev Triggers stopped state.
-     *
-     * Requirements:
-     *
-     * - The contract must not be paused.
-     */
-    function _pause() internal virtual whenNotPaused {
-        _paused = true;
-        emit Paused(_msgSender());
-    }
-
-    /**
-     * @dev Returns to normal state.
-     *
-     * Requirements:
-     *
-     * - The contract must be paused.
-     */
-    function _unpause() internal virtual whenPaused {
-        _paused = false;
-        emit Unpaused(_msgSender());
-    }
-}
-
-pragma solidity ^0.6.0;
-
-interface IUniswapRouterETH {
-    function addLiquidity(
-        address tokenA,
-        address tokenB,
-        uint256 amountADesired,
-        uint256 amountBDesired,
-        uint256 amountAMin,
-        uint256 amountBMin,
-        address to,
-        uint256 deadline
-    )
-        external
-        returns (
-            uint256 amountA,
-            uint256 amountB,
-            uint256 liquidity
-        );
-
-    function addLiquidityETH(
-        address token,
-        uint256 amountTokenDesired,
-        uint256 amountTokenMin,
-        uint256 amountETHMin,
-        address to,
-        uint256 deadline
-    )
-        external
-        payable
-        returns (
-            uint256 amountToken,
-            uint256 amountETH,
-            uint256 liquidity
-        );
-
-    function removeLiquidity(
-        address tokenA,
-        address tokenB,
-        uint256 liquidity,
-        uint256 amountAMin,
-        uint256 amountBMin,
-        address to,
-        uint256 deadline
-    ) external returns (uint256 amountA, uint256 amountB);
-
-    function removeLiquidityETH(
-        address token,
-        uint256 liquidity,
-        uint256 amountTokenMin,
-        uint256 amountETHMin,
-        address to,
-        uint256 deadline
-    ) external returns (uint256 amountToken, uint256 amountETH);
-
-    function swapExactTokensForTokens(
-        uint256 amountIn,
-        uint256 amountOutMin,
-        address[] calldata path,
-        address to,
-        uint256 deadline
-    ) external returns (uint256[] memory amounts);
-
-    function swapExactETHForTokens(
-        uint256 amountOutMin,
-        address[] calldata path,
-        address to,
-        uint256 deadline
-    ) external payable returns (uint256[] memory amounts);
-
-    function swapExactTokensForETH(
-        uint256 amountIn,
-        uint256 amountOutMin,
-        address[] calldata path,
-        address to,
-        uint256 deadline
-    ) external returns (uint256[] memory amounts);
-
-    function swapExactTokensForTokensSupportingFeeOnTransferTokens(
-        uint256 amountIn,
-        uint256 amountOutMin,
-        address[] calldata path,
-        address to,
-        uint256 deadline
-    ) external;
-}
-
-pragma solidity ^0.6.0;
-
-interface IUniswapV2Pair {
-    function token0() external view returns (address);
-
-    function token1() external view returns (address);
-}
-
-pragma solidity ^0.6.0;
-
-interface IMasterChef {
-    function poolLength() external view returns (uint256);
-
-    function setBooPerSecond(uint256 _rewardTokenPerSecond) external;
-
-    function getMultiplier(uint256 _from, uint256 _to)
-        external
-        view
-        returns (uint256);
-
-    function pendingBOO(uint256 _pid, address _user)
-        external
-        view
-        returns (uint256);
-
-    function massUpdatePools() external;
-
-    function updatePool(uint256 _pid) external;
-
-    function deposit(uint256 _pid, uint256 _amount) external;
-
-    function withdraw(uint256 _pid, uint256 _amount) external;
-
-    function userInfo(uint256 _pid, address _user)
-        external
-        view
-        returns (uint256, uint256);
-
-    function emergencyWithdraw(uint256 _pid) external;
-}
-
-pragma solidity ^0.6.0;
-
-/**
- * @dev Implementation of a strategy to get yields from farming LP Pools in SpookySwap.
- * SpookySwap is an automated market maker (“AMM”) that allows two tokens to be exchanged on Fantom's Opera Network.
- *
- * This strategy deposits whatever funds it receives from the vault into the selected masterChef pool.
- * rewards from providing liquidity are farmed every few minutes, sold and split 50/50.
- * The corresponding pair of assets are bought and more liquidity is added to the masterChef pool.
- *
- * Expect the amount of LP tokens you have to grow over time while you have assets deposit
- */
-contract ReaperAutoCompoundXBoo is Ownable, Pausable {
+contract ReaperTreasury is Ownable {
     using SafeERC20 for IERC20;
-    using Address for address;
     using SafeMath for uint256;
 
-    /**
-     * @dev Tokens Used:
-     * {wftm} - Required for liquidity routing when doing swaps.
-     * {rewardToken} - Token generated by staking our funds.
-     * {rewardToken} - LP Token that the strategy maximizes.
-     * {lpToken0, lpToken1} - Tokens that the strategy maximizes. IUniswapV2Pair tokens.
-     */
-    address public wftm = address(0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83);
-    address public rewardToken;
-    //address public rewardToken;
-    //address public lpToken0;
-    //address public lpToken1;
+    address public accountant;
 
-    /**
-     * @dev Third Party Contracts:
-     * {uniRouter} - the uniRouter for target DEX
-     * {masterChef} - masterChef contract
-     * {poolId} - masterChef pool id
-     */
-    address public uniRouter;
-    address public aceLab;
-    uint8 public poolId;
-
-    /**
-     * @dev Reaper Contracts:
-     * {treasury} - Address of the Reaper treasury
-     * {vault} - Address of the vault that controls the strategy's funds.
-     */
-    address public treasury;
-    address public vault;
-
-    /**
-     * @dev Distribution of fees earned. This allocations relative to the % implemented on
-     * Current implementation separates 5% for fees. Can be changed through the constructor
-     * Inputs in constructor should be ratios between the Fee and Max Fee, divisble into percents by 10000
-     *
-     * {callFee} - Percent of the totalFee reserved for the harvester (1000 = 10% of total fee: 0.5% by default)
-     * {treasuryFee} - Percent of the totalFee taken by maintainers of the software (9000 = 90% of total fee: 4.5% by default)
-     * {securityFee} - Fee taxed when a user withdraws funds. Taken to prevent flash deposit/harvest attacks.
-     * These funds are redistributed to stakers in the pool.
-     *
-     * {totalFee} - divided by 10,000 to determine the % fee. Set to 5% by default and
-     * lowered as necessary to provide users with the most competitive APY.
-     *
-     * {MAX_FEE} - Maximum fee allowed by the strategy. Hard-capped at 5%.
-     * {PERCENT_DIVISOR} - Constant used to safely calculate the correct percentages.
-     */
-
-    uint256 public callFee = 1000;
-    uint256 public treasuryFee = 9000;
-    uint256 public securityFee = 10;
-    uint256 public totalFee = 450;
-    uint256 public constant MAX_FEE = 500;
-    uint256 public constant PERCENT_DIVISOR = 10000;
-
-    /**
-     * @dev Routes we take to swap tokens using PanrewardTokenSwap.
-     * {rewardTokenToWftmRoute} - Route we take to get from {rewardToken} into {wftm}.
-     * {rewardTokenToLp0Route} - Route we take to get from {rewardToken} into {lpToken0}.
-     * {rewardTokenToLp1Route} - Route we take to get from {rewardToken} into {lpToken1}.
-     */
-    address[] public rewardTokenToWftmRoute;
-    //address[] public rewardTokenToLp0Route;
-    //address[] public rewardTokenToLp1Route;
-
-    /**
-     * {StratHarvest} Event that is fired each time someone harvests the strat.
-     * {TotalFeeUpdated} Event that is fired each time the total fee is updated.
-     * {CallFeeUpdated} Event that is fired each time the call fee is updated.
-     */
-    event StratHarvest(address indexed harvester);
-    event TotalFeeUpdated(uint256 newFee);
-    event CallFeeUpdated(uint256 newCallFee, uint256 newTreasuryFee);
-
-    /**
-     * @dev Initializes the strategy. Sets parameters, saves routes, and gives allowances.
-     * @notice see documentation for each variable above its respective declaration.
-     */
-    constructor(
-        address _uniRouter,
-        address _aceLab,
-        address _rewardToken,
-        address _vault,
-        address _treasury
-    ) public {
-        uniRouter = _uniRouter;
-        aceLab = _aceLab;
-        rewardToken = _rewardToken;
-        vault = _vault;
-        treasury = _treasury;
-        rewardTokenToWftmRoute = [rewardToken, wftm];
-
-        giveAllowances();
+    struct Withdrawal {
+        uint256 amount;
+        address token;
+        uint256 time;
+        bool reviewed;
     }
 
-    /**
-     * @dev Function that puts the funds to work.
-     * It gets called whenever someone deposits in the strategy's vault contract.
-     * It deposits {rewardToken} in the masterChef to farm {rewardToken}
-     */
-    function deposit() public whenNotPaused {
-        uint256 tokenBal = IERC20(rewardToken).balanceOf(address(this));
+    uint256 counter = 0;
 
-        if (tokenBal > 0) {
-            // IMasterChef(masterChef).deposit(poolId, tokenBal);
-        }
+    mapping(uint256 => Withdrawal) public withdrawals;
+
+    function viewWithdrawal(uint256 index)
+        public
+        view
+        returns (
+            uint256,
+            address,
+            uint256,
+            bool
+        )
+    {
+        Withdrawal memory receipt = withdrawals[index];
+        return (receipt.amount, receipt.token, receipt.time, receipt.reviewed);
     }
 
-    /**
-     * @dev Withdraws funds and sents them back to the vault.
-     * It withdraws {rewardToken} from the masterChef.
-     * The available {rewardToken} minus fees is returned to the vault.
-     */
-    function withdraw(uint256 _amount) external {
-        require(msg.sender == vault, "!vault");
-
-        uint256 tokenBal = IERC20(rewardToken).balanceOf(address(this));
-
-        if (tokenBal < _amount) {
-            // IMasterChef(masterChef).withdraw(poolId, _amount.sub(tokenBal));
-            tokenBal = IERC20(rewardToken).balanceOf(address(this));
-        }
-
-        if (tokenBal > _amount) {
-            tokenBal = _amount;
-        }
-        uint256 withdrawFee = tokenBal.mul(securityFee).div(PERCENT_DIVISOR);
-        IERC20(rewardToken).safeTransfer(vault, tokenBal.sub(withdrawFee));
+    function markReviewed(uint256 index) public returns (bool) {
+        require(msg.sender == accountant, "not authorized");
+        withdrawals[index].reviewed = true;
+        return true;
     }
 
-    /**
-     * @dev Core function of the strat, in charge of collecting and re-investing rewards.
-     * 1. It claims rewards from the masterChef.
-     * 2. It charges the system fees to simplify the split.
-     * 3. It swaps the {rewardToken} token for {lpToken0} & {lpToken1}
-     * 4. Adds more liquidity to the pool.
-     * 5. It deposits the new LP tokens.
-     */
-    function harvest() external whenNotPaused {
-        require(!Address.isContract(msg.sender), "!contract");
-        // IMasterChef(masterChef).deposit(poolId, 0);
-        chargeFees();
-        deposit();
-
-        emit StratHarvest(msg.sender);
+    function withdrawTokens(
+        address _token,
+        address _to,
+        uint256 _amount
+    ) external onlyOwner {
+        withdrawals[counter] = Withdrawal(
+            _amount,
+            _token,
+            block.timestamp,
+            false
+        );
+        counter++;
+        IERC20(_token).safeTransfer(_to, _amount);
     }
 
-    /**
-     * @dev Takes out fees from the rewards. Set by constructor
-     * callFeeToUser is set as a percentage of the fee,
-     * as is treasuryFeeToVault
-     */
-    function chargeFees() internal {
-        if (totalFee != 0) {
-            uint256 toWftm = IERC20(rewardToken)
-                .balanceOf(address(this))
-                .mul(totalFee)
-                .div(PERCENT_DIVISOR);
-            IUniswapRouterETH(uniRouter)
-                .swapExactTokensForTokensSupportingFeeOnTransferTokens(
-                    toWftm,
-                    0,
-                    rewardTokenToWftmRoute,
-                    address(this),
-                    now.add(600)
-                );
-
-            uint256 wftmBal = IERC20(wftm).balanceOf(address(this));
-
-            uint256 callFeeToUser = wftmBal.mul(callFee).div(PERCENT_DIVISOR);
-            IERC20(wftm).safeTransfer(msg.sender, callFeeToUser);
-
-            uint256 treasuryFeeToVault = wftmBal.mul(treasuryFee).div(
-                PERCENT_DIVISOR
-            );
-            IERC20(wftm).safeTransfer(treasury, treasuryFeeToVault);
-        }
-    }
-
-    /**
-     * @dev Function to calculate the total underlaying {rewardToken} held by the strat.
-     * It takes into account both the funds in hand, as the funds allocated in the masterChef.
-     */
-    function balanceOf() public view returns (uint256) {
-        return balanceOfrewardToken().add(balanceOfPool());
-    }
-
-    /**
-     * @dev It calculates how much {rewardToken} the contract holds.
-     */
-    function balanceOfrewardToken() public view returns (uint256) {
-        return IERC20(rewardToken).balanceOf(address(this));
-    }
-
-    /**
-     * @dev It calculates how much {rewardToken} the strategy has allocated in the masterChef
-     */
-    function balanceOfPool() public view returns (uint256) {
-        // (uint256 _amount, ) = IMasterChef(masterChef).userInfo(
-        //     poolId,
-        //     address(this)
-        // );
-        // return _amount;
-        return 0;
-    }
-
-    /**
-     * @dev Function that has to be called as part of strat migration. It sends all the available funds back to the
-     * vault, ready to be migrated to the new strat.
-     */
-    function retireStrat() external {
-        require(msg.sender == vault, "!vault");
-
-        // IMasterChef(masterChef).emergencyWithdraw(poolId);
-
-        uint256 tokenBal = IERC20(rewardToken).balanceOf(address(this));
-        IERC20(rewardToken).transfer(vault, tokenBal);
-    }
-
-    /**
-     * @dev Pauses deposits. Withdraws all funds from the masterChef, leaving rewards behind
-     */
-    function panic() public onlyOwner {
-        pause();
-        // IMasterChef(masterChef).withdraw(poolId, balanceOfPool());
-    }
-
-    /**
-     * @dev Pauses the strat.
-     */
-    function pause() public onlyOwner {
-        _pause();
-        removeAllowances();
-    }
-
-    /**
-     * @dev Unpauses the strat.
-     */
-    function unpause() external onlyOwner {
-        _unpause();
-
-        giveAllowances();
-
-        deposit();
-    }
-
-    function giveAllowances() internal {
-        // IERC20(rewardToken).safeApprove(masterChef, uint256(-1));
-        IERC20(rewardToken).safeApprove(uniRouter, uint256(-1));
-    }
-
-    function removeAllowances() internal {
-        // IERC20(rewardToken).safeApprove(masterChef, 0);
-    }
-
-    /**
-     * @dev updates the total fee, capped at 5%
-     */
-    function updateTotalFee(uint256 _totalFee)
+    function withdrawFTM(address payable _to, uint256 _amount)
         external
         onlyOwner
-        returns (bool)
     {
-        require(_totalFee <= MAX_FEE, "Fee Too High");
-        totalFee = _totalFee;
-        emit TotalFeeUpdated(totalFee);
+        withdrawals[counter] = Withdrawal(
+            _amount,
+            address(0),
+            block.timestamp,
+            false
+        );
+        counter++;
+        _to.transfer(_amount);
+    }
+
+    function setAccountant(address _addr) public onlyOwner returns (bool) {
+        accountant = _addr;
         return true;
     }
 
-    /**
-     * @dev updates the call fee and adjusts the treasury fee to cover the difference
-     */
-    function updateCallFee(uint256 _callFee) external onlyOwner returns (bool) {
-        callFee = _callFee;
-        treasuryFee = PERCENT_DIVISOR.sub(callFee);
-        emit CallFeeUpdated(callFee, treasuryFee);
-        return true;
-    }
-
-    function updateTreasury(address newTreasury)
-        external
-        onlyOwner
-        returns (bool)
-    {
-        treasury = newTreasury;
-        return true;
-    }
+    receive() external payable {}
 }
