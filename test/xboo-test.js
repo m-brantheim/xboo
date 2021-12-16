@@ -41,7 +41,7 @@ describe("Vaults", function () {
     console.log("providers");
     //get signers
     [owner, addr1, addr2, addr3, addr4, ...addrs] = await ethers.getSigners();
-    const booHolder = "0x7f08d733a2c4e65e88975aef8f80fa694ef339c1";
+    const booHolder = "0x4b90f32b6a928e1f0d9e261f141b1ea90e1e9256";
     const booWhaleAddress = "0x1f0c5a9046f0db0e8b651cd9e8e23ba4efe4b86d";
     await hre.network.provider.request({
       method: "hardhat_impersonateAccount",
@@ -123,11 +123,65 @@ describe("Vaults", function () {
   });
 
   describe("Deploying the vault and strategy", function () {
-    it("should initiate vault with a 0 balance", async function () {});
+    it("should initiate vault with a 0 balance", async function () {
+      console.log(1);
+      const totalBalance = await vault.balance();
+      console.log(2);
+      const availableBalance = await vault.available();
+      console.log(i);
+      const pricePerFullShare = await vault.getPricePerFullShare();
+      console.log(4);
+      expect(totalBalance).to.equal(0);
+      console.log(5);
+      expect(availableBalance).to.equal(0);
+      console.log(6);
+      expect(pricePerFullShare).to.equal(ethers.utils.parseEther("1"));
+    });
   });
   describe("Vault Tests", function () {
-    it("should allow deposits and account for them correctly", async function () {});
-    it("should mint user their pool share", async function () {});
+    it("should allow deposits and account for them correctly", async function () {
+      const userBalance = await boo.balanceOf(selfAddress);
+      console.log(1);
+      console.log(`userBalance: ${userBalance}`);
+      const vaultBalance = await vault.balance();
+      console.log(2);
+      const depositAmount = ethers.utils.parseEther(".0001");
+      console.log(i);
+      await vault.connect(self).deposit(depositAmount);
+      console.log(4);
+      const newVaultBalance = await vault.balance();
+      console.log(`newVaultBalance: ${newVaultBalance}`);
+      const newUserBalance = await boo.balanceOf(selfAddress);
+      console.log(`newUserBalance: ${newUserBalance}`);
+      console.log(
+        `userBalance - depositAmount: ${userBalance - depositAmount}`
+      );
+      console.log(
+        `userBalance - newUserBalance: ${userBalance - newUserBalance}`
+      );
+      const deductedAmount = userBalance - newUserBalance;
+      expect(vaultBalance).to.equal(0);
+      expect(newVaultBalance).to.equal(depositAmount);
+      expect(deductedAmount.toString()).to.equal(depositAmount.toString());
+    });
+    it("should mint user their pool share", async function () {
+      const userBalance = await boo.balanceOf(selfAddress);
+      console.log(userBalance.toString());
+      const depositAmount = ethers.utils.parseEther("0.0000005");
+      await vault.connect(self).deposit(depositAmount);
+      console.log((await vault.balance()).toString());
+      console.log((await boo.balanceOf(selfAddress)).toString());
+      const selfBooBalance = await vault.balanceOf(selfAddress);
+      console.log(selfBooBalance.toString());
+      await boo.connect(self).transfer(ownerAddress, depositAmount);
+      const ownerBalance = await boo.balanceOf(ownerAddress);
+      console.log(ownerBalance.toString());
+      await vault.deposit(depositAmount);
+      const ownerBooBalance = await vault.balanceOf(ownerAddress);
+      console.log(ownerBooBalance.toString());
+      expect(ownerBooBalance).to.equal(depositAmount);
+      expect(selfBooBalance).to.equal(depositAmount);
+    });
     it("should allow withdrawals", async function () {});
     it("should be able to harvest", async function () {});
     it("should provide yield", async function () {});
