@@ -206,7 +206,28 @@ describe("Vaults", function () {
       const withdrawFee = (depositAmount * securityFee) / percentDivisor;
       expect(userBalanceAfterWithdraw).to.equal(userBalance.sub(withdrawFee));
     });
-    it("should be able to harvest", async function () {});
+    it("should be able to harvest", async function () {
+      const userBalance = await boo.balanceOf(selfAddress);
+      console.log(`userBalance: ${userBalance}`);
+      const depositAmount = ethers.utils.parseEther("0.0001");
+      await vault.connect(self).deposit(depositAmount);
+      console.log(
+        `await boo.balanceOf(selfAddress): ${await boo.balanceOf(selfAddress)}`
+      );
+      const newUserBalance = userBalance.sub(depositAmount);
+      const tokenBalance = await boo.balanceOf(selfAddress);
+      expect(tokenBalance).to.equal(newUserBalance);
+      await strategy.connect(self).harvest();
+      await vault.connect(self).withdraw(depositAmount);
+      console.log(
+        `await boo.balanceOf(selfAddress): ${await boo.balanceOf(selfAddress)}`
+      );
+      const userBalanceAfterWithdraw = await boo.balanceOf(selfAddress);
+      const securityFee = 10;
+      const percentDivisor = 10000;
+      const withdrawFee = (depositAmount * securityFee) / percentDivisor;
+      expect(userBalanceAfterWithdraw).to.equal(userBalance.sub(withdrawFee));
+    });
     it("should provide yield", async function () {});
   });
 });
