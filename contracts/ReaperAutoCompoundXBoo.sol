@@ -1411,6 +1411,11 @@ interface IUniswapRouterETH {
         address to,
         uint256 deadline
     ) external;
+
+    function getAmountsOut(uint256 amountIn, address[] memory path)
+        external
+        view
+        returns (uint256[] memory amounts);
 }
 
 pragma solidity 0.8.9;
@@ -1450,7 +1455,26 @@ interface IBooMirrorWorld is IERC20 {
 }
 
 interface IAceLab {
+    struct PoolInfo {
+        IERC20 RewardToken; // Address of reward token contract.
+        uint256 RewardPerSecond; // reward token per second for this pool
+        uint256 TokenPrecision; // The precision factor used for calculations, dependent on a tokens decimals
+        uint256 xBooStakedAmount; // # of xboo allocated to this pool
+        uint256 lastRewardTime; // Last block time that reward distribution occurs.
+        uint256 accRewardPerShare; // Accumulated reward per share, times the pools token precision. See below.
+        uint256 endTime; // end time of pool
+        uint256 startTime; // start time of pool
+        uint256 userLimitEndTime;
+        address protocolOwnerAddress; // this address is the owner of the protocol corresponding to the reward token, used for emergency withdraw to them only
+    }
+
     function poolInfo(uint256 _index) external returns (PoolInfo memory);
+
+    // function userInf(uint256 _index)
+    //     external
+    //     returns (mapping(address => UserInfo) storage);
+
+    // mapping(uint256 => mapping(address => UserInfo)) public userInfo;
 
     function poolLength() external view returns (uint256);
 
@@ -1473,23 +1497,359 @@ interface IAceLab {
     function emergencyWithdraw(uint256 _pid) external;
 }
 
-// Info of each pool.
-struct PoolInfo {
-    IERC20 RewardToken; // Address of reward token contract.
-    uint256 RewardPerSecond; // reward token per second for this pool
-    uint256 TokenPrecision; // The precision factor used for calculations, dependent on a tokens decimals
-    uint256 xBooStakedAmount; // # of xboo allocated to this pool
-    uint256 lastRewardTime; // Last block time that reward distribution occurs.
-    uint256 accRewardPerShare; // Accumulated reward per share, times the pools token precision. See below.
-    uint256 endTime; // end time of pool
-    uint256 startTime; // start time of pool
-    uint256 userLimitEndTime;
-    address protocolOwnerAddress; // this address is the owner of the protocol corresponding to the reward token, used for emergency withdraw to them only
+interface IERC20Ext is IERC20 {
+    function decimals() external returns (uint256);
 }
+
+// The goal of this farm is to allow a stake xBoo earn anything model
+// In a flip of a traditional farm, this contract only accepts xBOO as the staking token
+// Each new pool added is a new reward token, each with its own start times
+// end times, and rewards per second.
+contract AceLab is Ownable {
+    using SafeERC20 for IERC20;
+
+    // Info of each user.
+    // struct UserInfo {
+    //     uint256 amount; // How many tokens the user has provided.
+    //     uint256 rewardDebt; // Reward debt. See explanation below.
+    // }
+
+    // // Info of each pool.
+    struct PoolInfo {
+        IERC20 RewardToken; // Address of reward token contract.
+        uint256 RewardPerSecond; // reward token per second for this pool
+        uint256 TokenPrecision; // The precision factor used for calculations, dependent on a tokens decimals
+        uint256 xBooStakedAmount; // # of xboo allocated to this pool
+        uint256 lastRewardTime; // Last block time that reward distribution occurs.
+        uint256 accRewardPerShare; // Accumulated reward per share, times the pools token precision. See below.
+        uint256 endTime; // end time of pool
+        uint256 startTime; // start time of pool
+        uint256 userLimitEndTime;
+        address protocolOwnerAddress; // this address is the owner of the protocol corresponding to the reward token, used for emergency withdraw to them only
+    }
+
+    IERC20 public immutable xboo;
+    uint256 public baseUserLimitTime = 2 days;
+    uint256 public baseUserLimit = 0;
+
+    // Info of each pool.
+    PoolInfo[] public poolInfo;
+    // Info of each user that stakes tokens.
+    mapping(uint256 => mapping(address => UserInfo)) public userInfo;
+
+    event AdminTokenRecovery(address tokenRecovered, uint256 amount);
+    event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
+    event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
+    event EmergencyWithdraw(
+        address indexed user,
+        uint256 indexed pid,
+        uint256 amount
+    );
+    event SetRewardPerSecond(uint256 _pid, uint256 _gemsPerSecond);
+
+    constructor(IERC20 _xboo) {
+        xboo = _xboo;
+    }
+
+    function poolLength() external view returns (uint256) {
+        return poolInfo.length;
+    }
+
+    // Return reward multiplier over the given _from to _to block.
+    function getMultiplier(
+        uint256 _from,
+        uint256 _to,
+        PoolInfo memory pool
+    ) internal pure returns (uint256) {
+        _from = _from > pool.startTime ? _from : pool.startTime;
+        if (_from > pool.endTime || _to < pool.startTime) {
+            return 0;
+        }
+        if (_to > pool.endTime) {
+            return pool.endTime - _from;
+        }
+        return _to - _from;
+    }
+
+    // View function to see pending BOOs on frontend.
+    function pendingReward(uint256 _pid, address _user)
+        external
+        view
+        returns (uint256)
+    {
+        PoolInfo memory pool = poolInfo[_pid];
+        UserInfo memory user = userInfo[_pid][_user];
+        uint256 accRewardPerShare = pool.accRewardPerShare;
+
+        if (
+            block.timestamp > pool.lastRewardTime && pool.xBooStakedAmount != 0
+        ) {
+            uint256 multiplier = getMultiplier(
+                pool.lastRewardTime,
+                block.timestamp,
+                pool
+            );
+            uint256 reward = multiplier * pool.RewardPerSecond;
+            accRewardPerShare +=
+                (reward * pool.TokenPrecision) /
+                pool.xBooStakedAmount;
+        }
+        return
+            ((user.amount * accRewardPerShare) / pool.TokenPrecision) -
+            user.rewardDebt;
+    }
+
+    // Update reward variables for all pools. Be careful of gas spending!
+    function massUpdatePools() public {
+        uint256 length = poolInfo.length;
+        for (uint256 pid = 0; pid < length; ++pid) {
+            updatePool(pid);
+        }
+    }
+
+    // Update reward variables of the given pool to be up-to-date.
+    function updatePool(uint256 _pid) internal {
+        PoolInfo storage pool = poolInfo[_pid];
+        if (block.timestamp <= pool.lastRewardTime) {
+            return;
+        }
+
+        if (pool.xBooStakedAmount == 0) {
+            pool.lastRewardTime = block.timestamp;
+            return;
+        }
+        uint256 multiplier = getMultiplier(
+            pool.lastRewardTime,
+            block.timestamp,
+            pool
+        );
+        uint256 reward = multiplier * pool.RewardPerSecond;
+
+        pool.accRewardPerShare +=
+            (reward * pool.TokenPrecision) /
+            pool.xBooStakedAmount;
+        pool.lastRewardTime = block.timestamp;
+    }
+
+    // Deposit tokens.
+    function deposit(uint256 _pid, uint256 _amount) external {
+        PoolInfo storage pool = poolInfo[_pid];
+        UserInfo storage user = userInfo[_pid][msg.sender];
+
+        if (baseUserLimit > 0 && block.timestamp < pool.userLimitEndTime) {
+            require(
+                user.amount + _amount <= baseUserLimit,
+                "deposit: user has hit deposit cap"
+            );
+        }
+
+        updatePool(_pid);
+
+        uint256 pending = ((user.amount * pool.accRewardPerShare) /
+            pool.TokenPrecision) - user.rewardDebt;
+
+        user.amount += _amount;
+        pool.xBooStakedAmount += _amount;
+        user.rewardDebt =
+            (user.amount * pool.accRewardPerShare) /
+            pool.TokenPrecision;
+
+        if (pending > 0) {
+            safeTransfer(pool.RewardToken, msg.sender, pending);
+        }
+        xboo.safeTransferFrom(address(msg.sender), address(this), _amount);
+
+        emit Deposit(msg.sender, _pid, _amount);
+    }
+
+    // Withdraw tokens.
+    function withdraw(uint256 _pid, uint256 _amount) external {
+        PoolInfo storage pool = poolInfo[_pid];
+        UserInfo storage user = userInfo[_pid][msg.sender];
+
+        require(user.amount >= _amount, "withdraw: not good");
+
+        updatePool(_pid);
+
+        uint256 pending = ((user.amount * pool.accRewardPerShare) /
+            pool.TokenPrecision) - user.rewardDebt;
+
+        user.amount -= _amount;
+        pool.xBooStakedAmount -= _amount;
+        user.rewardDebt =
+            (user.amount * pool.accRewardPerShare) /
+            pool.TokenPrecision;
+
+        if (pending > 0) {
+            safeTransfer(pool.RewardToken, msg.sender, pending);
+        }
+
+        safeTransfer(xboo, address(msg.sender), _amount);
+
+        emit Withdraw(msg.sender, _pid, _amount);
+    }
+
+    // Withdraw without caring about rewards. EMERGENCY ONLY.
+    function emergencyWithdraw(uint256 _pid) external {
+        PoolInfo storage pool = poolInfo[_pid];
+        UserInfo storage user = userInfo[_pid][msg.sender];
+
+        uint256 oldUserAmount = user.amount;
+        pool.xBooStakedAmount -= user.amount;
+        user.amount = 0;
+        user.rewardDebt = 0;
+
+        xboo.safeTransfer(address(msg.sender), oldUserAmount);
+        emit EmergencyWithdraw(msg.sender, _pid, oldUserAmount);
+    }
+
+    // Safe erc20 transfer function, just in case if rounding error causes pool to not have enough reward tokens.
+    function safeTransfer(
+        IERC20 token,
+        address _to,
+        uint256 _amount
+    ) internal {
+        uint256 bal = token.balanceOf(address(this));
+        if (_amount > bal) {
+            token.safeTransfer(_to, bal);
+        } else {
+            token.safeTransfer(_to, _amount);
+        }
+    }
+
+    // Admin functions
+
+    function changeEndTime(uint256 _pid, uint32 addSeconds) external onlyOwner {
+        poolInfo[_pid].endTime += addSeconds;
+    }
+
+    function stopReward(uint256 _pid) external onlyOwner {
+        poolInfo[_pid].endTime = block.number;
+    }
+
+    function changePoolUserLimitEndTime(uint256 _pid, uint256 _time)
+        external
+        onlyOwner
+    {
+        poolInfo[_pid].userLimitEndTime = _time;
+    }
+
+    function changeUserLimit(uint256 _limit) external onlyOwner {
+        baseUserLimit = _limit;
+    }
+
+    function changeBaseUserLimitTime(uint256 _time) external onlyOwner {
+        baseUserLimitTime = _time;
+    }
+
+    function checkForToken(IERC20 _Token) private view {
+        uint256 length = poolInfo.length;
+        for (uint256 _pid = 0; _pid < length; _pid++) {
+            require(
+                poolInfo[_pid].RewardToken != _Token,
+                "checkForToken: reward token provided"
+            );
+        }
+    }
+
+    function recoverWrongTokens(address _tokenAddress) external onlyOwner {
+        require(
+            _tokenAddress != address(xboo),
+            "recoverWrongTokens: Cannot be xboo"
+        );
+        checkForToken(IERC20(_tokenAddress));
+
+        uint256 bal = IERC20(_tokenAddress).balanceOf(address(this));
+        IERC20(_tokenAddress).safeTransfer(address(msg.sender), bal);
+
+        emit AdminTokenRecovery(_tokenAddress, bal);
+    }
+
+    function emergencyRewardWithdraw(uint256 _pid, uint256 _amount)
+        external
+        onlyOwner
+    {
+        poolInfo[_pid].RewardToken.safeTransfer(
+            poolInfo[_pid].protocolOwnerAddress,
+            _amount
+        );
+    }
+
+    // Add a new token to the pool. Can only be called by the owner.
+    function add(
+        uint256 _rewardPerSecond,
+        IERC20Ext _Token,
+        uint256 _startTime,
+        uint256 _endTime,
+        address _protocolOwner
+    ) external onlyOwner {
+        checkForToken(_Token); // ensure you cant add duplicate pools
+
+        uint256 lastRewardTime = block.timestamp > _startTime
+            ? block.timestamp
+            : _startTime;
+        uint256 decimalsRewardToken = _Token.decimals();
+        require(decimalsRewardToken < 30, "Token has way too many decimals");
+        uint256 precision = 10**(30 - decimalsRewardToken);
+
+        poolInfo.push(
+            PoolInfo({
+                RewardToken: _Token,
+                RewardPerSecond: _rewardPerSecond,
+                TokenPrecision: precision,
+                xBooStakedAmount: 0,
+                startTime: _startTime,
+                endTime: _endTime,
+                lastRewardTime: lastRewardTime,
+                accRewardPerShare: 0,
+                protocolOwnerAddress: _protocolOwner,
+                userLimitEndTime: lastRewardTime + baseUserLimitTime
+            })
+        );
+    }
+
+    // Update the given pool's reward per second. Can only be called by the owner.
+    function setRewardPerSecond(uint256 _pid, uint256 _rewardPerSecond)
+        external
+        onlyOwner
+    {
+        updatePool(_pid);
+
+        poolInfo[_pid].RewardPerSecond = _rewardPerSecond;
+
+        emit SetRewardPerSecond(_pid, _rewardPerSecond);
+    }
+}
+
+// Info of each pool.
+// struct PoolInfo {
+//     IERC20 RewardToken; // Address of reward token contract.
+//     uint256 RewardPerSecond; // reward token per second for this pool
+//     uint256 TokenPrecision; // The precision factor used for calculations, dependent on a tokens decimals
+//     uint256 xBooStakedAmount; // # of xboo allocated to this pool
+//     uint256 lastRewardTime; // Last block time that reward distribution occurs.
+//     uint256 accRewardPerShare; // Accumulated reward per share, times the pools token precision. See below.
+//     uint256 endTime; // end time of pool
+//     uint256 startTime; // start time of pool
+//     uint256 userLimitEndTime;
+//     address protocolOwnerAddress; // this address is the owner of the protocol corresponding to the reward token, used for emergency withdraw to them only
+// }
+
+// Info of each user.
+struct UserInfo {
+    uint256 amount; // How many tokens the user has provided.
+    uint256 rewardDebt; // Reward debt. See explanation below.
+}
+
+// struct UsedPool {
+//     uint8 poolId;
+//     address[] rewardTokenToWftmPath;
+// }
 
 pragma solidity 0.8.9;
 
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
+// import "./Acelab.sol";
 
 /**
  * @dev Implementation of a strategy to get yields from farming LP Pools in SpookySwap.
@@ -1509,26 +1869,24 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
     /**
      * @dev Tokens Used:
      * {wftm} - Required for liquidity routing when doing swaps.
-     * {rewardToken} - Token generated by staking our funds.
+     * {stakingToken} - Token generated by staking our funds.
      * {rewardToken} - LP Token that the strategy maximizes.
-     * {lpToken0, lpToken1} - Tokens that the strategy maximizes. IUniswapV2Pair tokens.
      */
     address public wftm = address(0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83);
-    address public rewardToken;
     address public stakingToken;
-    //address public rewardToken;
-    //address public lpToken0;
-    //address public lpToken1;
+    address public rewardToken;
 
     /**
      * @dev Third Party Contracts:
      * {uniRouter} - the uniRouter for target DEX
-     * {masterChef} - masterChef contract
-     * {poolId} - masterChef pool id
+     * {aceLabAddress} - Address to AceLab
+     * {aceLab} - The AceLab contract
+     * {currentPoolId} - the currently selected AceLab pool id
      */
     address public uniRouter;
-    address public aceLab;
-    uint8 public poolId;
+    address public aceLabAddress;
+    AceLab public aceLab;
+    uint8 public currentPoolId;
 
     /**
      * @dev Reaper Contracts:
@@ -1563,14 +1921,15 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
     uint256 public constant PERCENT_DIVISOR = 10000;
 
     /**
-     * @dev Routes we take to swap tokens using PanrewardTokenSwap.
-     * {rewardTokenToWftmRoute} - Route we take to get from {rewardToken} into {wftm}.
-     * {rewardTokenToLp0Route} - Route we take to get from {rewardToken} into {lpToken0}.
-     * {rewardTokenToLp1Route} - Route we take to get from {rewardToken} into {lpToken1}.
+     * @dev Routes we take to swap tokens
+     * {wftmToRewardTokenRoute} - Route we take to get from {wftm} into {rewardToken}.
+     * {poolTokenToWftmRoute} - Route we take to get from {pool reward token} into {wftm}.
      */
-    address[] public rewardTokenToWftmRoute;
-    //address[] public rewardTokenToLp0Route;
-    //address[] public rewardTokenToLp1Route;
+    address[] public wftmToRewardTokenRoute;
+    //mapping(address => address[]) poolTokenToWftmRoute;
+
+    uint8[] currentlyUsedPools;
+    uint8 constant WFTM_POOL_ID = 2;
 
     /**
      * {StratHarvest} Event that is fired each time someone harvests the strat.
@@ -1587,19 +1946,23 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
      */
     constructor(
         address _uniRouter,
-        address _aceLab,
+        address _aceLabAddress,
         address _rewardToken,
         address _stakingToken,
         address _vault,
-        address _treasury
+        address _treasury,
+        uint8[] memory _currentlyUsedPools
     ) public {
         uniRouter = _uniRouter;
-        aceLab = _aceLab;
+        aceLabAddress = _aceLabAddress;
+        aceLab = AceLab(aceLabAddress);
         rewardToken = _rewardToken;
         stakingToken = _stakingToken;
         vault = _vault;
         treasury = _treasury;
-        rewardTokenToWftmRoute = [rewardToken, wftm];
+        wftmToRewardTokenRoute = [wftm, rewardToken];
+        currentlyUsedPools = _currentlyUsedPools;
+        currentPoolId = WFTM_POOL_ID;
 
         giveAllowances();
     }
@@ -1614,6 +1977,10 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
 
         if (tokenBal > 0) {
             IBooMirrorWorld(stakingToken).enter(tokenBal);
+            uint256 stakingTokenBal = IERC20(stakingToken).balanceOf(
+                address(this)
+            );
+            aceLab.deposit(currentPoolId, stakingTokenBal);
         }
     }
 
@@ -1649,11 +2016,95 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
      */
     function harvest() external whenNotPaused {
         require(!Address.isContract(msg.sender), "!contract");
-        // IMasterChef(masterChef).deposit(poolId, 0);
+        _collectRewards();
+        // sell rewards for rewardToken
         chargeFees();
-        deposit();
+
+        // rebalance
 
         emit StratHarvest(msg.sender);
+    }
+
+    function _swapPoolRewardsToWftm() internal {}
+
+    function _collectRewards() internal {
+        uint256 nrOfUsedPools = currentlyUsedPools.length;
+        for (uint256 index = 0; index < nrOfUsedPools; index++) {
+            uint8 poolId = currentlyUsedPools[index];
+            uint256 pendingReward = aceLab.pendingReward(poolId, address(this));
+            aceLab.withdraw(poolId, pendingReward);
+            // IERC20 RewardToken;
+            // uint256 RewardPerSecond;
+            // uint256 TokenPrecision;
+            // uint256 xBooStakedAmount;
+            // uint256 lastRewardTime;
+            // uint256 accRewardPerShare;
+            // uint256 endTime;
+            // uint256 startTime;
+            // uint256 userLimitEndTime;
+            // address protocolOwnerAddress;
+            // (
+            //     RewardToken,
+            //     RewardPerSecond,
+            //     TokenPrecision,
+            //     xBooStakedAmount,
+            //     lastRewardTime,
+            //     accRewardPerShare,
+            //     endTime,
+            //     startTime,
+            //     userLimitEndTime,
+            //     protocolOwnerAddress
+            // ) = aceLab.poolInfo(poolId);
+            AceLab.PoolInfo memory info = aceLab.poolInfo(poolId);
+            //             struct PoolInfo {
+            //     IERC20 RewardToken; // Address of reward token contract.
+            //     uint256 RewardPerSecond; // reward token per second for this pool
+            //     uint256 TokenPrecision; // The precision factor used for calculations, dependent on a tokens decimals
+            //     uint256 xBooStakedAmount; // # of xboo allocated to this pool
+            //     uint256 lastRewardTime; // Last block time that reward distribution occurs.
+            //     uint256 accRewardPerShare; // Accumulated reward per share, times the pools token precision. See below.
+            //     uint256 endTime; // end time of pool
+            //     uint256 startTime; // start time of pool
+            //     uint256 userLimitEndTime;
+            //     address protocolOwnerAddress; // this address is the owner of the protocol corresponding to the reward token, used for emergency withdraw to them only
+            // }
+        }
+    }
+
+    function rebalance() internal {}
+
+    function _getEstimatedYield(AceLab.PoolInfo memory pool)
+        internal
+        view
+        returns (uint256)
+    {
+        uint256 multiplier = _getMultiplier(
+            block.timestamp,
+            block.timestamp + 1 days,
+            pool
+        );
+        address[] memory path;
+        uint256 wftmYield = IUniswapRouterETH(uniRouter).getAmountsOut(
+            multiplier,
+            path
+        )[0];
+        return wftmYield;
+    }
+
+    // Return reward multiplier over the given _from to _to block.
+    function _getMultiplier(
+        uint256 _from,
+        uint256 _to,
+        AceLab.PoolInfo memory pool
+    ) internal pure returns (uint256) {
+        _from = _from > pool.startTime ? _from : pool.startTime;
+        if (_from > pool.endTime || _to < pool.startTime) {
+            return 0;
+        }
+        if (_to > pool.endTime) {
+            return pool.endTime - _from;
+        }
+        return _to - _from;
     }
 
     /**
@@ -1663,18 +2114,18 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
      */
     function chargeFees() internal {
         if (totalFee != 0) {
-            uint256 toWftm = IERC20(rewardToken)
-                .balanceOf(address(this))
-                .mul(totalFee)
-                .div(PERCENT_DIVISOR);
-            IUniswapRouterETH(uniRouter)
-                .swapExactTokensForTokensSupportingFeeOnTransferTokens(
-                    toWftm,
-                    0,
-                    rewardTokenToWftmRoute,
-                    address(this),
-                    block.timestamp.add(600)
-                );
+            // uint256 toWftm = IERC20(rewardToken)
+            //     .balanceOf(address(this))
+            //     .mul(totalFee)
+            //     .div(PERCENT_DIVISOR);
+            // IUniswapRouterETH(uniRouter)
+            //     .swapExactTokensForTokensSupportingFeeOnTransferTokens(
+            //         toWftm,
+            //         0,
+            //         rewardTokenToWftmRoute,
+            //         address(this),
+            //         block.timestamp.add(600)
+            //     );
 
             uint256 wftmBal = IERC20(wftm).balanceOf(address(this));
 
@@ -1768,7 +2219,8 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
     function giveAllowances() internal {
         // Give xBOO permission to use Boo
         IERC20(rewardToken).safeApprove(stakingToken, type(uint256).max);
-        // IERC20(rewardToken).safeApprove(uniRouter, uint256(-1));
+        // Give xBoo contract permission to stake xBoo
+        IERC20(stakingToken).safeApprove(aceLabAddress, type(uint256).max);
     }
 
     function removeAllowances() internal {

@@ -85,13 +85,22 @@ describe("Vaults", function () {
     console.log(`vault.address: ${vault.address}`);
     console.log(`treasury.address: ${treasury.address}`);
 
+    const TREEB = 9;
+    const OOE = 22;
+    const YOSHI = 18;
+    const YEL = 16;
+    const LQDR = 11;
+    const FONT = 10;
+    const WFTM = 2;
+
     strategy = await Strategy.deploy(
       uniRouter,
       aceLab,
       booAddress,
       xBooAddress,
       vault.address,
-      treasury.address
+      treasury.address,
+      [TREEB, OOE, YOSHI, YEL, LQDR, FONT, WFTM]
     );
     console.log("strategy");
 
@@ -146,8 +155,12 @@ describe("Vaults", function () {
       console.log(1);
       console.log(`userBalance: ${userBalance}`);
       const vaultBalance = await vault.balance();
+      console.log("vaultBalance");
+      console.log(vaultBalance);
       console.log(2);
       const depositAmount = ethers.utils.parseEther(".1");
+      console.log("depositAmount");
+      console.log(depositAmount);
       console.log(i);
       await vault.connect(self).deposit(depositAmount);
       console.log(4);
@@ -155,16 +168,18 @@ describe("Vaults", function () {
       console.log(`newVaultBalance: ${newVaultBalance}`);
       console.log(`depositAmount: ${depositAmount}`);
       const newUserBalance = await boo.balanceOf(selfAddress);
-      // console.log(`newUserBalance: ${newUserBalance}`);
-      // console.log(
-      //   `userBalance - depositAmount: ${userBalance - depositAmount}`
-      // );
-      // console.log(
-      //   `userBalance - newUserBalance: ${userBalance - newUserBalance}`
-      // );
+
+      console.log(`newUserBalance: ${newUserBalance}`);
+      console.log(
+        `userBalance - depositAmount: ${userBalance - depositAmount}`
+      );
+      console.log(
+        `userBalance - newUserBalance: ${userBalance - newUserBalance}`
+      );
       const deductedAmount = userBalance.sub(newUserBalance);
+      console.log("deductedAmount");
+      console.log(deductedAmount);
       const isSmallBalanceDifference = depositAmount.sub(newVaultBalance) < 5;
-      console.log(`isSmallBalanceDifference: ${isSmallBalanceDifference}`);
       expect(vaultBalance).to.equal(0);
       expect(isSmallBalanceDifference).to.equal(true);
       expect(deductedAmount).to.equal(depositAmount);
