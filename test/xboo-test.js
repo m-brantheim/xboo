@@ -98,28 +98,7 @@ describe("Vaults", function () {
     const HEC_ID = 21;
     const OOE_ID = 22;
 
-    // const pools = [
-    //   { poolId: WFTM },
-    //   { poolId: FOO },
-    //   { poolId: WOO },
-    //   { poolId: TREEB },
-    //   { poolId: FONT },
-    //   { poolId: LQDR },
-    //   { poolId: YEL },
-    //   { poolId: TUSD },
-    //   { poolId: YOSHI },
-    //   { poolId: SPA },
-    //   { poolId: HEC },
-    //   { poolId: OOE },
-    // ];
-
     const WFTM = "0x21be370d5312f44cb42ce377bc9b8a0cef1a4c83";
-    const FOO = "0xFbc3c04845162F067A0B6F8934383E63899c3524";
-    const WOO = "0x6626c47c00F1D87902fc13EECfaC3ed06D5E8D8a";
-    const TREEB = "0xc60D7067dfBc6f2caf30523a064f416A5Af52963";
-    const FONT = "0xbbc4A8d076F4B1888fec42581B6fc58d242CF2D5";
-    const LQDR = "0x10b620b2dbAC4Faa7D7FFD71Da486f5D44cd86f9";
-    const YEL = "0xD3b71117E6C1558c1553305b44988cd944e97300";
     const TUSD = "0x9879aBDea01a879644185341F7aF7d8343556B7a";
     const SPA = "0x5602df4A94eB6C680190ACCFA2A475621E0ddBdc";
     const HEC = "0x5C4FDfc5233f935f20D2aDbA572F770c2E377Ab0";
@@ -138,25 +117,22 @@ describe("Vaults", function () {
     );
     console.log("strategy");
 
-    // const FOO_PATHS = [[FOO, WFTM]];
-    // const WOO_PATHS = [[WOO, WFTM]];
-    // const TREEB_PATHS = [[TREEB, WFTM]];
-    // const FONT_PATHS = [[FONT, WFTM]];
-    // const LQDR_PATHS = [[LQDR, WFTM]];
-    // const YEL_PATHS = [[YEL, WFTM]];
     const TUSD_PATHS = [TUSD, USDC, WFTM];
     const SPA_PATHS = [SPA, DAI, WFTM];
     const HEC_PATHS = [HEC, DAI, WFTM];
 
-    const tx1 = await strategy.addUsedPool(FOO_ID, []);
-    const tx2 = await strategy.addUsedPool(WOO_ID, []);
-    const tx3 = await strategy.addUsedPool(TREEB_ID, []);
-    const tx4 = await strategy.addUsedPool(FONT_ID, []);
-    const tx5 = await strategy.addUsedPool(LQDR_ID, []);
-    const tx6 = await strategy.addUsedPool(YEL_ID, []);
-    const tx7 = await strategy.addUsedPool(TUSD_ID, TUSD_PATHS);
-    const tx8 = await strategy.addUsedPool(SPA_ID, SPA_PATHS);
-    const tx9 = await strategy.addUsedPool(HEC_ID, HEC_PATHS);
+    const tx1 = await strategy.addUsedPool(WFTM_ID, []);
+    const tx2 = await strategy.addUsedPool(FOO_ID, []);
+    const tx3 = await strategy.addUsedPool(WOO_ID, []);
+    const tx4 = await strategy.addUsedPool(TREEB_ID, []);
+    const tx5 = await strategy.addUsedPool(FONT_ID, []);
+    const tx6 = await strategy.addUsedPool(LQDR_ID, []);
+    const tx7 = await strategy.addUsedPool(YEL_ID, []);
+    const tx8 = await strategy.addUsedPool(TUSD_ID, TUSD_PATHS);
+    const tx9 = await strategy.addUsedPool(YOSHI_ID, []);
+    const tx10 = await strategy.addUsedPool(SPA_ID, SPA_PATHS);
+    const tx11 = await strategy.addUsedPool(HEC_ID, HEC_PATHS);
+    const tx12 = await strategy.addUsedPool(OOE_ID, []);
     await tx1.wait();
     await tx2.wait();
     await tx3.wait();
@@ -166,6 +142,9 @@ describe("Vaults", function () {
     await tx7.wait();
     await tx8.wait();
     await tx9.wait();
+    await tx10.wait();
+    await tx11.wait();
+    await tx12.wait();
 
     await vault.initialize(strategy.address);
 
@@ -213,7 +192,7 @@ describe("Vaults", function () {
     });
   });
   describe("Vault Tests", function () {
-    xit("should allow deposits and account for them correctly", async function () {
+    it("should allow deposits and account for them correctly", async function () {
       const userBalance = await boo.balanceOf(selfAddress);
       console.log(1);
       console.log(`userBalance: ${userBalance}`);
@@ -247,24 +226,24 @@ describe("Vaults", function () {
       expect(isSmallBalanceDifference).to.equal(true);
       expect(deductedAmount).to.equal(depositAmount);
     });
-    // it("should mint user their pool share", async function () {
-    //   const userBalance = await boo.balanceOf(selfAddress);
-    //   console.log(userBalance.toString());
-    //   const depositAmount = ethers.utils.parseEther("0.0000005");
-    //   await vault.connect(self).deposit(depositAmount);
-    //   console.log((await vault.balance()).toString());
-    //   console.log((await boo.balanceOf(selfAddress)).toString());
-    //   const selfBooBalance = await vault.balanceOf(selfAddress);
-    //   console.log(selfBooBalance.toString());
-    //   await boo.connect(self).transfer(ownerAddress, depositAmount);
-    //   const ownerBalance = await boo.balanceOf(ownerAddress);
-    //   console.log(ownerBalance.toString());
-    //   await vault.deposit(depositAmount);
-    //   const ownerBooBalance = await vault.balanceOf(ownerAddress);
-    //   console.log(ownerBooBalance.toString());
-    //   expect(ownerBooBalance).to.equal(depositAmount);
-    //   expect(selfBooBalance).to.equal(depositAmount);
-    // });
+    xit("should mint user their pool share", async function () {
+      const userBalance = await boo.balanceOf(selfAddress);
+      console.log(userBalance.toString());
+      const depositAmount = ethers.utils.parseEther("0.0000005");
+      await vault.connect(self).deposit(depositAmount);
+      console.log((await vault.balance()).toString());
+      console.log((await boo.balanceOf(selfAddress)).toString());
+      const selfBooBalance = await vault.balanceOf(selfAddress);
+      console.log(selfBooBalance.toString());
+      await boo.connect(self).transfer(ownerAddress, depositAmount);
+      const ownerBalance = await boo.balanceOf(ownerAddress);
+      console.log(ownerBalance.toString());
+      await vault.deposit(depositAmount);
+      // const ownerBooBalance = await vault.balanceOf(ownerAddress);
+      // console.log(ownerBooBalance.toString());
+      // expect(ownerBooBalance).to.equal(depositAmount);
+      // expect(selfBooBalance).to.equal(depositAmount);
+    });
     // it("should allow withdrawals", async function () {
     //   const userBalance = await boo.balanceOf(selfAddress);
     //   console.log(`userBalance: ${userBalance}`);
@@ -289,7 +268,7 @@ describe("Vaults", function () {
     //   const withdrawFee = (depositAmount * securityFee) / percentDivisor;
     //   expect(userBalanceAfterWithdraw).to.equal(userBalance.sub(withdrawFee));
     // });
-    it("should be able to harvest", async function () {
+    xit("should be able to harvest", async function () {
       // const userBalance = await boo.balanceOf(selfAddress);
       // console.log(`userBalance: ${userBalance}`);
       // const depositAmount = ethers.utils.parseEther("0.0001");
