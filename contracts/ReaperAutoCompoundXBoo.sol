@@ -1470,12 +1470,6 @@ interface IAceLab {
 
     function poolInfo(uint256 _index) external returns (PoolInfo memory);
 
-    // function userInf(uint256 _index)
-    //     external
-    //     returns (mapping(address => UserInfo) storage);
-
-    // mapping(uint256 => mapping(address => UserInfo)) public userInfo;
-
     function poolLength() external view returns (uint256);
 
     // View function to see pending BOOs on frontend.
@@ -1933,7 +1927,9 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
     mapping(uint8 => uint256) poolYield;
     mapping(uint8 => bool) hasAllocatedToPool;
     mapping(uint8 => address[]) poolRewardToWftmPaths;
+    mapping(uint8 => uint256) poolBalance;
     uint8 constant WFTM_POOL_ID = 2;
+    uint256 totalPoolBalance = 0;
 
     /**
      * {StratHarvest} Event that is fired each time someone harvests the strat.
@@ -1990,6 +1986,10 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
                 address(this)
             );
             aceLab.deposit(currentPoolId, stakingTokenBal);
+            totalPoolBalance = totalPoolBalance.add(stakingTokenBal);
+            poolBalance[currentPoolId] = poolBalance[currentPoolId].add(
+                stakingTokenBal
+            );
         }
     }
 
@@ -2004,7 +2004,21 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
         uint256 tokenBal = IERC20(rewardToken).balanceOf(address(this));
 
         if (tokenBal < _amount) {
-            // IMasterChef(masterChef).withdraw(poolId, _amount.sub(tokenBal));
+            for (
+                uint256 index = 0;
+                index < currentlyUsedPools.length;
+                index++
+            ) {
+                uint8 poolId = currentlyUsedPools[index];
+                uint256 currentPoolBalance = poolBalance[poolId];
+                uint256 remainingAmount = _amount - tokenBal;
+                if (remainingAmount > currentPoolBalance) {
+                    aceLab.withdraw(poolId, currentPoolBalance);
+                } else {
+                    aceLab.withdraw(poolId, remainingAmount);
+                    break;
+                }
+            }
             tokenBal = IERC20(rewardToken).balanceOf(address(this));
         }
 
@@ -2063,6 +2077,7 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
                 poolDepositAmount = poolInfo.xBooStakedAmount / 5;
             }
             aceLab.deposit(bestYieldPoolId, poolDepositAmount);
+            totalPoolBalance = totalPoolBalance.add(poolDepositAmount);
             hasAllocatedToPool[bestYieldPoolId] = true;
             stakingBal = IERC20(stakingToken).balanceOf(address(this));
             currentPoolId = bestYieldPoolId;
@@ -2085,15 +2100,13 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
         }
     }
 
-    function _swapPoolRewardsToWftm() internal {}
-
     function _collectRewardsAndEstimateYield() internal {
         console.log("_collectRewardsAndEstimateYield()");
         uint256 nrOfUsedPools = currentlyUsedPools.length;
         for (uint256 index = 0; index < nrOfUsedPools; index++) {
             uint8 poolId = currentlyUsedPools[index];
-            uint256 pendingReward = aceLab.pendingReward(poolId, address(this));
-            aceLab.withdraw(poolId, pendingReward);
+            // uint256 pendingReward = aceLab.pendingReward(poolId, address(this));
+            aceLab.withdraw(poolId, 0);
             _swapRewardToWftm(poolId);
             _setEstimatedYield(poolId);
         }
@@ -2107,37 +2120,19 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
             address(this)
         );
         if (poolRewardTokenBal > 0) {
-            address[] memory firstPath = new address[](2);
-            firstPath[0] = address(poolInfo.RewardToken);
-            if (rewardToWftmPaths.length > 2) {
-                firstPath[1] = rewardToWftmPaths[1];
-            } else {
-                firstPath[1] = wftm;
+            // Default to support empty or incomplete path array
+            if (rewardToWftmPaths.length < 2) {
+                rewardToWftmPaths[0] = address(poolInfo.RewardToken);
+                rewardToWftmPaths[1] = wftm;
             }
             IUniswapRouterETH(uniRouter)
                 .swapExactTokensForTokensSupportingFeeOnTransferTokens(
                     poolRewardTokenBal,
                     0,
-                    firstPath,
+                    rewardToWftmPaths,
                     address(this),
                     block.timestamp.add(600)
                 );
-            if (rewardToWftmPaths.length > 2) {
-                address[] memory secondPath = new address[](2);
-                address intermediateToken = rewardToWftmPaths[1];
-                secondPath[0] = intermediateToken;
-                secondPath[1] = rewardToWftmPaths[2];
-                uint256 intermediateTokenBal = IERC20(intermediateToken)
-                    .balanceOf(address(this));
-                IUniswapRouterETH(uniRouter)
-                    .swapExactTokensForTokensSupportingFeeOnTransferTokens(
-                        intermediateTokenBal,
-                        0,
-                        secondPath,
-                        address(this),
-                        block.timestamp.add(600)
-                    );
-            }
         }
     }
 
@@ -2220,16 +2215,18 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
      * It takes into account both the funds in hand, as the funds allocated in the masterChef.
      */
     function balanceOf() public view returns (uint256) {
-        return
-            balanceOfrewardToken().add(
-                balanceOfStakingToken().add(balanceOfPool())
-            );
+        console.log("balanceOf()");
+        uint256 balance = balanceOfRewardToken().add(
+            balanceOfStakingToken().add(balanceOfPool())
+        );
+        console.log(balance);
+        return balance;
     }
 
     /**
      * @dev It calculates how much {rewardToken} the contract holds.
      */
-    function balanceOfrewardToken() public view returns (uint256) {
+    function balanceOfRewardToken() public view returns (uint256) {
         return IERC20(rewardToken).balanceOf(address(this));
     }
 
@@ -2244,12 +2241,7 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
      * @dev It calculates how much {rewardToken} the strategy has allocated in the masterChef
      */
     function balanceOfPool() public view returns (uint256) {
-        // (uint256 _amount, ) = IMasterChef(masterChef).userInfo(
-        //     poolId,
-        //     address(this)
-        // );
-        // return _amount;
-        return 0;
+        return IBooMirrorWorld(stakingToken).xBOOForBOO(totalPoolBalance);
     }
 
     /**
