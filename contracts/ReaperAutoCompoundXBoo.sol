@@ -2133,12 +2133,16 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
         uint256 poolRewardTokenBal = poolInfo.RewardToken.balanceOf(
             address(this)
         );
-        if (poolRewardTokenBal > 0) {
+        if (poolRewardTokenBal > 0 && address(poolInfo.RewardToken) != wftm) {
             // Default to support empty or incomplete path array
             if (rewardToWftmPaths.length < 2) {
+                rewardToWftmPaths = new address[](2);
                 rewardToWftmPaths[0] = address(poolInfo.RewardToken);
                 rewardToWftmPaths[1] = wftm;
             }
+            console.log("Paths: ");
+            console.log(rewardToWftmPaths[0]);
+            console.log(rewardToWftmPaths[1]);
             IUniswapRouterETH(uniRouter)
                 .swapExactTokensForTokensSupportingFeeOnTransferTokens(
                     poolRewardTokenBal,
@@ -2158,11 +2162,16 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
             block.timestamp + 1 days,
             poolInfo
         );
-        // console.log("---------------------------------");
+        console.log("---------------------------------");
         // console.log("RewardToken: ", address(pool.RewardToken));
         // console.log("RewardsPerSecond: ", pool.RewardPerSecond);
         // console.log("multiplier: ", multiplier);
         uint256 totalTokens = multiplier * poolInfo.RewardPerSecond;
+        console.log(IERC20Metadata(address(poolInfo.RewardToken)).symbol());
+        console.log("_poolId: ", _poolId);
+        console.log("multiplier: ", multiplier);
+        console.log("poolInfo.RewardPerSecond: ", poolInfo.RewardPerSecond);
+
         if (address(poolInfo.RewardToken) == wftm) {
             // console.log("is wftm");
             uint256 wftmYield = (1 ether * totalTokens) /
@@ -2170,19 +2179,24 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
             console.log("WFTM: ", wftmYield);
             poolYield[_poolId] = wftmYield;
         } else {
-            address[] memory path = new address[](2);
-            path[0] = address(poolInfo.RewardToken);
-            path[1] = wftm;
-            uint256 wftmTotalPoolYield = IUniswapRouterETH(uniRouter)
-                .getAmountsOut(totalTokens, path)[1];
-            uint256 wftmYield = (1 ether * wftmTotalPoolYield) /
-                poolInfo.xBooStakedAmount;
-            console.log(
-                IERC20Metadata(address(poolInfo.RewardToken)).symbol(),
-                ": ",
-                wftmYield
-            );
-            poolYield[_poolId] = wftmYield;
+            if (totalTokens == 0) {
+                poolYield[_poolId] = 0;
+            } else {
+                address[] memory path = new address[](2);
+                path[0] = address(poolInfo.RewardToken);
+                path[1] = wftm;
+                console.log("totalTokens: ", totalTokens);
+                uint256 wftmTotalPoolYield = IUniswapRouterETH(uniRouter)
+                    .getAmountsOut(totalTokens, path)[1];
+                uint256 wftmYield = (1 ether * wftmTotalPoolYield) /
+                    poolInfo.xBooStakedAmount;
+                console.log(
+                    IERC20Metadata(address(poolInfo.RewardToken)).symbol(),
+                    ": ",
+                    wftmYield
+                );
+                poolYield[_poolId] = wftmYield;
+            }
         }
         hasAllocatedToPool[_poolId] = false;
     }
