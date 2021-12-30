@@ -2011,15 +2011,29 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
             ) {
                 uint8 poolId = currentlyUsedPools[index];
                 uint256 currentPoolBalance = poolBalance[poolId];
-                uint256 remainingAmount = _amount - tokenBal;
-                if (remainingAmount > currentPoolBalance) {
-                    aceLab.withdraw(poolId, currentPoolBalance);
-                } else {
-                    aceLab.withdraw(poolId, remainingAmount);
-                    break;
+                if (currentPoolBalance > 0) {
+                    uint256 remainingAmount = _amount - tokenBal;
+                    uint256 withdrawAmount;
+                    if (remainingAmount > currentPoolBalance) {
+                        withdrawAmount = currentPoolBalance;
+                    } else {
+                        withdrawAmount = remainingAmount;
+                    }
+                    aceLab.withdraw(poolId, withdrawAmount);
+                    uint256 stakingTokenBal = IERC20(stakingToken).balanceOf(
+                        address(this)
+                    );
+                    IBooMirrorWorld(stakingToken).leave(stakingTokenBal);
+                    totalPoolBalance = totalPoolBalance.sub(stakingTokenBal);
+                    poolBalance[poolId] = poolBalance[poolId].sub(
+                        stakingTokenBal
+                    );
+                    tokenBal = IERC20(rewardToken).balanceOf(address(this));
+                    if (tokenBal >= _amount) {
+                        break;
+                    }
                 }
             }
-            tokenBal = IERC20(rewardToken).balanceOf(address(this));
         }
 
         if (tokenBal > _amount) {
@@ -2216,6 +2230,9 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
      */
     function balanceOf() public view returns (uint256) {
         console.log("balanceOf()");
+        console.log("balanceOfRewardToken(): ", balanceOfRewardToken());
+        console.log("balanceOfStakingToken(): ", balanceOfStakingToken());
+        console.log("balanceOfPool(): ", balanceOfPool());
         uint256 balance = balanceOfRewardToken().add(
             balanceOfStakingToken().add(balanceOfPool())
         );
@@ -2231,14 +2248,14 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
     }
 
     /**
-     * @dev It calculates how much {stakingToken} the contract holds.
+     * @dev It calculates how much {rewardToken} the contract has staked.
      */
     function balanceOfStakingToken() public view returns (uint256) {
         return IBooMirrorWorld(stakingToken).BOOBalance(address(this));
     }
 
     /**
-     * @dev It calculates how much {rewardToken} the strategy has allocated in the masterChef
+     * @dev It calculates how much {rewardToken} the strategy has allocated in the AceLab pools
      */
     function balanceOfPool() public view returns (uint256) {
         return IBooMirrorWorld(stakingToken).xBOOForBOO(totalPoolBalance);
