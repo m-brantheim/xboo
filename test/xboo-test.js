@@ -5,20 +5,33 @@ const { solidity } = require("ethereum-waffle");
 chai.use(solidity);
 const { expect } = chai;
 
+const moveTimeForward = async (seconds) => {
+  await network.provider.send("evm_increaseTime", [seconds]);
+  await network.provider.send("evm_mine");
+};
+
+const updatePools = async (acelab) => {
+  const tx = await acelab.massUpdatePools();
+  await tx.wait();
+};
+
 describe("Vaults", function () {
   const i = 0;
   let Vault;
   let Strategy;
   let Treasury;
   let Boo;
+  let Acelab;
   let vault;
   let strategy;
   let treasury;
   let boo;
   let booAddress = "0x841FAD6EAe12c286d1Fd18d1d525DFfA75C7EFFE";
   let xBooAddress = "0xa48d959AE2E88f1dAA7D5F611E01908106dE7598";
+  let acelab;
   let self;
   let booWhale;
+  let bigBooWhale;
   let selfAddress;
   let owner;
   let addr1;
@@ -43,7 +56,8 @@ describe("Vaults", function () {
     //get signers
     [owner, addr1, addr2, addr3, addr4, ...addrs] = await ethers.getSigners();
     const booHolder = "0x4b90f32b6a928e1f0d9e261f141b1ea90e1e9256";
-    const booWhaleAddress = "0x1f0c5a9046f0db0e8b651cd9e8e23ba4efe4b86d";
+    const booWhaleAddress = "0x7ccf7aa75f05f811c478569f939bd325b15cd1bf";
+    const bigBooWhaleAddress = "0xe0c15e9fe90d56472d8a43da5d3ef34ae955583c";
     await hre.network.provider.request({
       method: "hardhat_impersonateAccount",
       params: [booHolder],
@@ -52,8 +66,17 @@ describe("Vaults", function () {
       method: "hardhat_impersonateAccount",
       params: [booWhaleAddress],
     });
+    await hre.network.provider.request({
+      method: "hardhat_impersonateAccount",
+      params: [bigBooWhaleAddress],
+    });
     self = await ethers.provider.getSigner(booHolder);
     booWhale = await ethers.provider.getSigner(booWhaleAddress);
+    bigBooWhale = await ethers.provider.getSigner(bigBooWhaleAddress);
+    await self.sendTransaction({
+      to: bigBooWhaleAddress,
+      value: ethers.utils.parseEther("1"),
+    });
     selfAddress = await self.getAddress();
     ownerAddress = await owner.getAddress();
     console.log("addresses");
@@ -70,6 +93,8 @@ describe("Vaults", function () {
     treasury = await Treasury.deploy();
     console.log("treasury");
     boo = await Boo.attach(booAddress);
+    const aceLabAddress = "0x2352b745561e7e6FCD03c093cE7220e3e126ace0";
+    acelab = await Acelab.attach(aceLabAddress);
     console.log("boo attached");
     vault = await Vault.deploy(
       booAddress,
@@ -81,7 +106,6 @@ describe("Vaults", function () {
     console.log("vault");
 
     const uniRouter = "0xF491e7B69E4244ad4002BC14e878a34207E38c29";
-    const aceLab = "0x2352b745561e7e6FCD03c093cE7220e3e126ace0";
     console.log(`vault.address: ${vault.address}`);
     console.log(`treasury.address: ${treasury.address}`);
 
@@ -109,7 +133,7 @@ describe("Vaults", function () {
 
     strategy = await Strategy.deploy(
       uniRouter,
-      aceLab,
+      aceLabAddress,
       booAddress,
       xBooAddress,
       vault.address,
@@ -172,11 +196,18 @@ describe("Vaults", function () {
     await vault
       .connect(booWhale)
       .approve(vault.address, ethers.utils.parseEther("1000000000"));
+    await boo
+      .connect(bigBooWhale)
+      .approve(vault.address, ethers.utils.parseEther("1000000000"));
+    console.log("approvals5");
+    await vault
+      .connect(bigBooWhale)
+      .approve(vault.address, ethers.utils.parseEther("1000000000"));
     console.log("approvals6");
   });
 
-  xdescribe("Deploying the vault and strategy", function () {
-    it("should initiate vault with a 0 balance", async function () {
+  describe("Deploying the vault and strategy", function () {
+    xit("should initiate vault with a 0 balance", async function () {
       console.log(1);
       const totalBalance = await vault.balance();
       console.log(2);
@@ -192,7 +223,7 @@ describe("Vaults", function () {
     });
   });
   describe("Vault Tests", function () {
-    it("should allow deposits and account for them correctly", async function () {
+    xit("should allow deposits and account for them correctly", async function () {
       const userBalance = await boo.balanceOf(selfAddress);
       console.log(1);
       console.log(`userBalance: ${userBalance}`);
@@ -229,67 +260,89 @@ describe("Vaults", function () {
     xit("should mint user their pool share", async function () {
       const userBalance = await boo.balanceOf(selfAddress);
       console.log(userBalance.toString());
-      const depositAmount = ethers.utils.parseEther("0.0000005");
-      await vault.connect(self).deposit(depositAmount);
+      const selfDepositAmount = ethers.utils.parseEther("0.000000005");
+      await vault.connect(self).deposit(selfDepositAmount);
       console.log((await vault.balance()).toString());
       console.log((await boo.balanceOf(selfAddress)).toString());
       const selfBooBalance = await vault.balanceOf(selfAddress);
       console.log(selfBooBalance.toString());
-      await boo.connect(self).transfer(ownerAddress, depositAmount);
+      const ownerDepositAmount = ethers.utils.parseEther("0.0005");
+      await boo.connect(self).transfer(ownerAddress, ownerDepositAmount);
       const ownerBalance = await boo.balanceOf(ownerAddress);
+
+      // // const whaleDepositAmount = ethers.utils.parseEther("100");
+      // // await vault.connect(booWhale).deposit(whaleDepositAmount);
+
       console.log(ownerBalance.toString());
-      await vault.deposit(depositAmount);
-      // const ownerBooBalance = await vault.balanceOf(ownerAddress);
-      // console.log(ownerBooBalance.toString());
-      // expect(ownerBooBalance).to.equal(depositAmount);
-      // expect(selfBooBalance).to.equal(depositAmount);
+      await vault.deposit(ownerDepositAmount);
+      const ownerBooBalance = await vault.balanceOf(ownerAddress);
+      console.log(ownerBooBalance.toString());
+      expect(ownerBooBalance).to.equal(ownerDepositAmount);
+      expect(selfBooBalance).to.equal(selfDepositAmount);
     });
-    // it("should allow withdrawals", async function () {
-    //   const userBalance = await boo.balanceOf(selfAddress);
-    //   console.log(`userBalance: ${userBalance}`);
-    //   const depositAmount = ethers.BigNumber.from(
-    //     ethers.utils.parseEther("0.0001")
-    //   );
-    //   await vault.connect(self).deposit(depositAmount);
-    //   console.log(
-    //     `await boo.balanceOf(selfAddress): ${await boo.balanceOf(selfAddress)}`
-    //   );
-    //   const newUserBalance = userBalance.sub(depositAmount);
-    //   const tokenBalance = await boo.balanceOf(selfAddress);
-    //   const balanceDifferenceIsZero = tokenBalance.sub(newUserBalance).isZero();
-    //   expect(balanceDifferenceIsZero).to.equal(true);
-    //   await vault.connect(self).withdraw(depositAmount);
-    //   console.log(
-    //     `await boo.balanceOf(selfAddress): ${await boo.balanceOf(selfAddress)}`
-    //   );
-    //   const userBalanceAfterWithdraw = await boo.balanceOf(selfAddress);
-    //   const securityFee = 10;
-    //   const percentDivisor = 10000;
-    //   const withdrawFee = (depositAmount * securityFee) / percentDivisor;
-    //   expect(userBalanceAfterWithdraw).to.equal(userBalance.sub(withdrawFee));
-    // });
+    xit("should allow withdrawals", async function () {
+      const userBalance = await boo.balanceOf(selfAddress);
+      console.log(`userBalance: ${userBalance}`);
+      const depositAmount = ethers.BigNumber.from(
+        ethers.utils.parseEther("0.0001")
+      );
+      await vault.connect(self).deposit(depositAmount);
+      console.log(
+        `await boo.balanceOf(selfAddress): ${await boo.balanceOf(selfAddress)}`
+      );
+      const whaleDepositAmount = ethers.utils.parseEther("100");
+      await vault.connect(booWhale).deposit(whaleDepositAmount);
+      const newUserBalance = userBalance.sub(depositAmount);
+      const tokenBalance = await boo.balanceOf(selfAddress);
+      const balanceDifferenceIsZero = tokenBalance.sub(newUserBalance).isZero();
+      expect(balanceDifferenceIsZero).to.equal(true);
+      await vault.connect(self).withdraw(depositAmount);
+      console.log(
+        `await boo.balanceOf(selfAddress): ${await boo.balanceOf(selfAddress)}`
+      );
+      const newUserVaultBalance = await vault.balanceOf(selfAddress);
+      console.log(`newUserVaultBalance: ${newUserVaultBalance}`);
+      const userBalanceAfterWithdraw = await boo.balanceOf(selfAddress);
+      const securityFee = 10;
+      const percentDivisor = 10000;
+      const withdrawFee = (depositAmount * securityFee) / percentDivisor;
+      expect(userBalanceAfterWithdraw).to.equal(userBalance.sub(withdrawFee));
+    });
     xit("should be able to harvest", async function () {
-      // const userBalance = await boo.balanceOf(selfAddress);
-      // console.log(`userBalance: ${userBalance}`);
-      // const depositAmount = ethers.utils.parseEther("0.0001");
-      // await vault.connect(self).deposit(depositAmount);
-      // console.log(
-      //   `await boo.balanceOf(selfAddress): ${await boo.balanceOf(selfAddress)}`
-      // );
-      // const newUserBalance = userBalance.sub(depositAmount);
-      // const tokenBalance = await boo.balanceOf(selfAddress);
-      // expect(tokenBalance).to.equal(newUserBalance);
       await strategy.connect(self).harvest();
-      // await vault.connect(self).withdraw(depositAmount);
-      // console.log(
-      //   `await boo.balanceOf(selfAddress): ${await boo.balanceOf(selfAddress)}`
-      // );
-      // const userBalanceAfterWithdraw = await boo.balanceOf(selfAddress);
-      // const securityFee = 10;
-      // const percentDivisor = 10000;
-      // const withdrawFee = (depositAmount * securityFee) / percentDivisor;
-      // expect(userBalanceAfterWithdraw).to.equal(userBalance.sub(withdrawFee));
     });
-    // it("should provide yield", async function () {});
+    it("should provide yield", async function () {
+      await strategy.connect(self).harvest();
+      const depositAmount = ethers.utils.parseEther(".05");
+      await vault.connect(self).deposit(depositAmount);
+      const vaultBalance = await vault.balance();
+      console.log(`vaultBalance: ${vaultBalance}`);
+      console.log(`depositAmount: ${depositAmount}`);
+
+      await strategy.connect(self).harvest();
+      const newVaultBalance = await vault.balance();
+      console.log(`newVaultBalance: ${newVaultBalance}`);
+      const whaleDepositAmount = ethers.utils.parseEther("4628");
+      await vault.connect(booWhale).deposit(whaleDepositAmount);
+      const bigWhaleDepositAmount = ethers.utils.parseEther("324950");
+      await vault.connect(bigBooWhale).deposit(bigWhaleDepositAmount);
+      const minute = 60;
+      const hour = 60 * minute;
+      const day = 24 * hour;
+      await moveTimeForward(10 * day);
+      await updatePools(acelab);
+      await strategy.connect(self).harvest();
+      const newVaultBalance2 = await vault.balance();
+      console.log(`newVaultBalance2: ${newVaultBalance2}`);
+      const totalDepositAmount = depositAmount
+        .add(whaleDepositAmount)
+        .add(bigWhaleDepositAmount);
+      console.log(`totalDepositAmount: ${totalDepositAmount}`);
+      const hasYield = newVaultBalance2 > totalDepositAmount;
+      console.log(`hasYield: ${hasYield}`);
+      // expect(vaultBalance).to.equal(0);
+      // expect(isSmallBalanceDifference).to.equal(true);
+      // expect(deductedAmount).to.equal(depositAmount);
+    });
   });
 });
