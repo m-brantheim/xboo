@@ -48,6 +48,7 @@ describe("Vaults", function () {
         {
           forking: {
             jsonRpcUrl: "https://rpc.ftm.tools/",
+            blockNumber: 26880530,
           },
         },
       ],
@@ -55,7 +56,7 @@ describe("Vaults", function () {
     console.log("providers");
     //get signers
     [owner, addr1, addr2, addr3, addr4, ...addrs] = await ethers.getSigners();
-    const booHolder = "0x4b90f32b6a928e1f0d9e261f141b1ea90e1e9256";
+    const booHolder = "0xb76922bd6747a5a80088f62560e195f17c43e4dd";
     const booWhaleAddress = "0x7ccf7aa75f05f811c478569f939bd325b15cd1bf";
     const bigBooWhaleAddress = "0xe0c15e9fe90d56472d8a43da5d3ef34ae955583c";
     await hre.network.provider.request({
@@ -75,7 +76,7 @@ describe("Vaults", function () {
     bigBooWhale = await ethers.provider.getSigner(bigBooWhaleAddress);
     await self.sendTransaction({
       to: bigBooWhaleAddress,
-      value: ethers.utils.parseEther("1"),
+      value: ethers.utils.parseEther("0.1"),
     });
     selfAddress = await self.getAddress();
     ownerAddress = await owner.getAddress();
@@ -324,7 +325,7 @@ describe("Vaults", function () {
       console.log(`newVaultBalance: ${newVaultBalance}`);
       const whaleDepositAmount = ethers.utils.parseEther("4628");
       await vault.connect(booWhale).deposit(whaleDepositAmount);
-      const bigWhaleDepositAmount = ethers.utils.parseEther("324950");
+      const bigWhaleDepositAmount = ethers.utils.parseEther("327171");
       await vault.connect(bigBooWhale).deposit(bigWhaleDepositAmount);
       const minute = 60;
       const hour = 60 * minute;
@@ -340,9 +341,7 @@ describe("Vaults", function () {
       console.log(`totalDepositAmount: ${totalDepositAmount}`);
       const hasYield = newVaultBalance2 > totalDepositAmount;
       console.log(`hasYield: ${hasYield}`);
-      // expect(vaultBalance).to.equal(0);
-      // expect(isSmallBalanceDifference).to.equal(true);
-      // expect(deductedAmount).to.equal(depositAmount);
+      expect(hasYield).to.equal(true);
     });
   });
 });
