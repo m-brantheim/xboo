@@ -1980,10 +1980,17 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
     function retireStrat() external {
         require(msg.sender == vault, "!vault");
 
-        // IMasterChef(masterChef).emergencyWithdraw(poolId);
+        for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
+            uint8 poolId = currentlyUsedPools[index];
+            uint256 balance = poolBalance[poolId];
+            aceLab.withdraw(poolId, balance);
+        }
 
-        uint256 tokenBal = IERC20(rewardToken).balanceOf(address(this));
-        IERC20(rewardToken).transfer(vault, tokenBal);
+        uint256 stakingTokenBal = IERC20(stakingToken).balanceOf(address(this));
+        IBooMirrorWorld(stakingToken).leave(stakingTokenBal);
+
+        uint256 rewardTokenBal = IERC20(rewardToken).balanceOf(address(this));
+        IERC20(rewardToken).transfer(vault, rewardTokenBal);
     }
 
     /**
@@ -1991,7 +1998,15 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
      */
     function panic() public onlyOwner {
         pause();
-        // IMasterChef(masterChef).withdraw(poolId, balanceOfPool());
+        for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
+            uint8 poolId = currentlyUsedPools[index];
+            aceLab.emergencyWithdraw(poolId);
+        }
+        uint256 stakingTokenBal = IERC20(stakingToken).balanceOf(address(this));
+        IBooMirrorWorld(stakingToken).leave(stakingTokenBal);
+
+        uint256 rewardTokenBal = IERC20(rewardToken).balanceOf(address(this));
+        IERC20(rewardToken).transfer(vault, rewardTokenBal);
     }
 
     /**
