@@ -58,11 +58,11 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
     address public treasury;
     address public vault;
 
-    /**
-     * @dev Contract roles:
-     * {strategist} - Address of the strategist responsible for updating strategy related variables
-     */
-    address public strategist;
+    // /**
+    //  * @dev Contract roles:
+    //  * {strategist} - Address of the strategist responsible for updating strategy related variables
+    //  */
+    // address public strategist;
 
     /**
      * @dev Distribution of fees earned. This allocations relative to the % implemented on
@@ -112,9 +112,10 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
     event StratHarvest(address indexed harvester);
     event TotalFeeUpdated(uint256 newFee);
     event CallFeeUpdated(uint256 newCallFee, uint256 newTreasuryFee);
-    event StrategistUpdated(address newStrategist);
-    event PoolAdded(uint8 poolId);
-    event PoolRemoved(uint8 poolId);
+
+    // event StrategistUpdated(address newStrategist);
+    // event PoolAdded(uint8 poolId);
+    // event PoolRemoved(uint8 poolId);
 
     /**
      * @dev Initializes the strategy. Sets parameters, saves routes, and gives allowances.
@@ -502,7 +503,7 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
     }
 
     /**
-     * @dev Pauses deposits. Withdraws all funds from the masterChef, leaving rewards behind
+     * @dev Pauses deposits. Withdraws all funds from the AceLab contract, leaving rewards behind
      */
     function panic() public onlyOwner {
         pause();
@@ -610,37 +611,39 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
 
     function updateMaxPoolDilutionFactor(uint8 _maxPoolDilutionFactor)
         external
+        onlyOwner
     {
-        _onlyAuthorized();
+        // _onlyAuthorized();
         require(_maxPoolDilutionFactor > 0, "Must be a positive number");
         maxPoolDilutionFactor = _maxPoolDilutionFactor;
     }
 
-    function _onlyAuthorized() internal view {
-        require(
-            msg.sender == strategist || msg.sender == owner(),
-            "Not authorized"
-        );
-    }
+    // function _onlyAuthorized() internal view {
+    //     require(
+    //         msg.sender == strategist || msg.sender == owner(),
+    //         "Not authorized"
+    //     );
+    // }
 
-    /**
-     * @notice
-     *  Used to change `strategist`.
-     *
-     *  This may only be called by governance or the existing strategist.
-     * @param _strategist The new address to assign as `strategist`.
-     */
-    function setStrategist(address _strategist) external {
-        _onlyAuthorized();
-        require(_strategist != address(0), "Cant use the 0 address");
-        strategist = _strategist;
-        emit StrategistUpdated(strategist);
-    }
+    // /**
+    //  * @notice
+    //  *  Used to change `strategist`.
+    //  *
+    //  *  This may only be called by governance or the existing strategist.
+    //  * @param _strategist The new address to assign as `strategist`.
+    //  */
+    // function setStrategist(address _strategist) external {
+    //     _onlyAuthorized();
+    //     require(_strategist != address(0), "Cant use the 0 address");
+    //     strategist = _strategist;
+    //     emit StrategistUpdated(strategist);
+    // }
 
     function addUsedPool(uint8 _poolId, address[] memory _poolRewardToWftmPaths)
         external
+        onlyOwner
     {
-        _onlyAuthorized();
+        // _onlyAuthorized();
         currentlyUsedPools.push(_poolId);
         poolRewardToWftmPaths[_poolId] = _poolRewardToWftmPaths;
         address poolRewardToken;
@@ -653,22 +656,22 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
         if (poolRewardToken != wftm) {
             IERC20(poolRewardToken).safeApprove(uniRouter, type(uint256).max);
         }
-        emit PoolAdded(_poolId);
+        // emit PoolAdded(_poolId);
     }
 
-    function removeUsedPool(uint8 _poolIndex) external {
-        _onlyAuthorized();
-        uint8 poolId = currentlyUsedPools[_poolIndex];
-        IAceLab.PoolInfo memory poolInfo = aceLab.poolInfo(poolId);
-        poolInfo.RewardToken.safeApprove(uniRouter, 0);
-        uint256 balance = poolBalance[poolId];
-        aceLab.withdraw(poolId, balance);
-        totalPoolBalance = totalPoolBalance.sub(balance);
-        poolBalance[poolId] = 0;
-        uint256 lastPoolIndex = currentlyUsedPools.length - 1;
-        uint8 lastPoolId = currentlyUsedPools[lastPoolIndex];
-        currentlyUsedPools[_poolIndex] = lastPoolId;
-        currentlyUsedPools.pop();
-        emit PoolRemoved(poolId);
-    }
+    // function removeUsedPool(uint8 _poolIndex) external onlyOwner {
+    //     // _onlyAuthorized();
+    //     uint8 poolId = currentlyUsedPools[_poolIndex];
+    //     IAceLab.PoolInfo memory poolInfo = aceLab.poolInfo(poolId);
+    //     poolInfo.RewardToken.safeApprove(uniRouter, 0);
+    //     uint256 balance = poolBalance[poolId];
+    //     aceLab.withdraw(poolId, balance);
+    //     totalPoolBalance = totalPoolBalance.sub(balance);
+    //     poolBalance[poolId] = 0;
+    //     uint256 lastPoolIndex = currentlyUsedPools.length - 1;
+    //     uint8 lastPoolId = currentlyUsedPools[lastPoolIndex];
+    //     currentlyUsedPools[_poolIndex] = lastPoolId;
+    //     currentlyUsedPools.pop();
+    //     // emit PoolRemoved(poolId);
+    // }
 }
