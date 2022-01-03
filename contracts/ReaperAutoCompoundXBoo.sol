@@ -1605,6 +1605,8 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
     event TotalFeeUpdated(uint256 newFee);
     event CallFeeUpdated(uint256 newCallFee, uint256 newTreasuryFee);
     event StrategistUpdated(address newStrategist);
+    event PoolAdded(uint8 poolId);
+    event PoolRemoved(uint8 poolId);
 
     /**
      * @dev Initializes the strategy. Sets parameters, saves routes, and gives allowances.
@@ -1637,21 +1639,21 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
      * It deposits {rewardToken} into xBoo (BooMirrorWorld) to farm {stakingToken}
      */
     function deposit() public whenNotPaused {
-        console.log("deposit()");
+        // console.log("deposit()");
         uint256 tokenBal = IERC20(rewardToken).balanceOf(address(this));
 
         if (tokenBal > 0) {
             IBooMirrorWorld(stakingToken).enter(tokenBal);
-            console.log(".enter(tokenBal): ", tokenBal);
+            // console.log(".enter(tokenBal): ", tokenBal);
             uint256 stakingTokenBal = IERC20(stakingToken).balanceOf(
                 address(this)
             );
             aceLab.deposit(currentPoolId, stakingTokenBal);
-            console.log("currentPoolId: ", currentPoolId);
-            console.log(
-                ".deposit(currentPoolId, stakingTokenBal): ",
-                stakingTokenBal
-            );
+            // console.log("currentPoolId: ", currentPoolId);
+            // console.log(
+            //     ".deposit(currentPoolId, stakingTokenBal): ",
+            //     stakingTokenBal
+            // );
             totalPoolBalance = totalPoolBalance.add(stakingTokenBal);
             poolBalance[currentPoolId] = poolBalance[currentPoolId].add(
                 stakingTokenBal
@@ -1718,7 +1720,7 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
      * 5. It deposits the new LP tokens.
      */
     function harvest() external whenNotPaused {
-        console.log("harvest()");
+        // console.log("harvest()");
         require(!Address.isContract(msg.sender), "!contract");
         _collectRewardsAndEstimateYield();
         _chargeFees();
@@ -1728,7 +1730,7 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
     }
 
     function _rebalance() internal {
-        console.log("rebalance()");
+        // console.log("rebalance()");
         uint256 stakingBal = IERC20(stakingToken).balanceOf(address(this));
         while (stakingBal > 0) {
             uint256 bestYield = 0;
@@ -1752,18 +1754,18 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
             uint256 poolDepositAmount = stakingBal;
             IAceLab.PoolInfo memory poolInfo = aceLab.poolInfo(bestYieldPoolId);
             bool isNotWFTM = address(poolInfo.RewardToken) != wftm;
-            console.log("isNotWFTM: ", isNotWFTM);
-            console.log("poolDepositAmount: ", poolDepositAmount);
-            console.log(
-                "poolInfo.xBooStakedAmount / maxPoolDilutionFactor: ",
-                poolInfo.xBooStakedAmount / maxPoolDilutionFactor
-            );
-            console.log(
-                "isNotWFTM && poolDepositAmount > (poolInfo.xBooStakedAmount / maxPoolDilutionFactor): ",
-                isNotWFTM &&
-                    poolDepositAmount >
-                    (poolInfo.xBooStakedAmount / maxPoolDilutionFactor)
-            );
+            // console.log("isNotWFTM: ", isNotWFTM);
+            // console.log("poolDepositAmount: ", poolDepositAmount);
+            // console.log(
+            //     "poolInfo.xBooStakedAmount / maxPoolDilutionFactor: ",
+            //     poolInfo.xBooStakedAmount / maxPoolDilutionFactor
+            // );
+            // console.log(
+            //     "isNotWFTM && poolDepositAmount > (poolInfo.xBooStakedAmount / maxPoolDilutionFactor): ",
+            //     isNotWFTM &&
+            //         poolDepositAmount >
+            //         (poolInfo.xBooStakedAmount / maxPoolDilutionFactor)
+            // );
             if (
                 isNotWFTM &&
                 poolDepositAmount >
@@ -1773,8 +1775,8 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
                     poolInfo.xBooStakedAmount /
                     maxPoolDilutionFactor;
             }
-            console.log("aceLab.deposit: ", poolDepositAmount);
-            console.log("into pool: ", bestYieldPoolId);
+            // console.log("aceLab.deposit: ", poolDepositAmount);
+            // console.log("into pool: ", bestYieldPoolId);
             aceLab.deposit(bestYieldPoolId, poolDepositAmount);
             totalPoolBalance = totalPoolBalance.add(poolDepositAmount);
             poolBalance[bestYieldPoolId] = poolBalance[bestYieldPoolId].add(
@@ -1787,9 +1789,9 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
     }
 
     function _compoundRewards() internal {
-        console.log("_compoundRewards()");
+        // console.log("_compoundRewards()");
         uint256 wftmBal = IERC20(wftm).balanceOf(address(this));
-        console.log("wftmBal: ", wftmBal);
+        // console.log("wftmBal: ", wftmBal);
         if (wftmBal > 0) {
             IUniswapRouterETH(uniRouter)
                 .swapExactTokensForTokensSupportingFeeOnTransferTokens(
@@ -1805,15 +1807,15 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
     }
 
     function _collectRewardsAndEstimateYield() internal {
-        console.log("_collectRewardsAndEstimateYield()");
+        // console.log("_collectRewardsAndEstimateYield()");
         uint256 nrOfUsedPools = currentlyUsedPools.length;
         for (uint256 index = 0; index < nrOfUsedPools; index++) {
             uint8 poolId = currentlyUsedPools[index];
-            console.log("poolId: ", poolId);
-            uint256 pendingReward = aceLab.pendingReward(poolId, address(this));
+            // console.log("poolId: ", poolId);
+            // uint256 pendingReward = aceLab.pendingReward(poolId, address(this));
             uint256 currentPoolBalance = poolBalance[poolId];
-            console.log("pendingReward: ", pendingReward);
-            console.log("currentPoolBalance: ", currentPoolBalance);
+            // console.log("pendingReward: ", pendingReward);
+            // console.log("currentPoolBalance: ", currentPoolBalance);
             aceLab.withdraw(poolId, currentPoolBalance);
             totalPoolBalance = totalPoolBalance.sub(currentPoolBalance);
             poolBalance[poolId] = 0;
@@ -1823,7 +1825,7 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
     }
 
     function _swapRewardToWftm(uint8 _poolId) internal {
-        console.log("_swapRewardToWftm()");
+        // console.log("_swapRewardToWftm()");
         address[] memory rewardToWftmPaths = poolRewardToWftmPaths[_poolId];
         IAceLab.PoolInfo memory poolInfo = aceLab.poolInfo(_poolId);
         uint256 poolRewardTokenBal = poolInfo.RewardToken.balanceOf(
@@ -1836,9 +1838,9 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
                 rewardToWftmPaths[0] = address(poolInfo.RewardToken);
                 rewardToWftmPaths[1] = wftm;
             }
-            console.log("Paths: ");
-            console.log(rewardToWftmPaths[0]);
-            console.log(rewardToWftmPaths[1]);
+            // console.log("Paths: ");
+            // console.log(rewardToWftmPaths[0]);
+            // console.log(rewardToWftmPaths[1]);
             IUniswapRouterETH(uniRouter)
                 .swapExactTokensForTokensSupportingFeeOnTransferTokens(
                     poolRewardTokenBal,
@@ -1851,28 +1853,28 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
     }
 
     function _setEstimatedYield(uint8 _poolId) internal {
-        console.log("_setEstimatedYield()");
+        // console.log("_setEstimatedYield()");
         IAceLab.PoolInfo memory poolInfo = aceLab.poolInfo(_poolId);
         uint256 multiplier = _getMultiplier(
             block.timestamp,
             block.timestamp + 1 days,
             poolInfo
         );
-        console.log("---------------------------------");
+        // console.log("---------------------------------");
         // console.log("RewardToken: ", address(pool.RewardToken));
         // console.log("RewardsPerSecond: ", pool.RewardPerSecond);
         // console.log("multiplier: ", multiplier);
         uint256 totalTokens = multiplier * poolInfo.RewardPerSecond;
-        console.log(IERC20Metadata(address(poolInfo.RewardToken)).symbol());
-        console.log("_poolId: ", _poolId);
-        console.log("multiplier: ", multiplier);
-        console.log("poolInfo.RewardPerSecond: ", poolInfo.RewardPerSecond);
+        // console.log(IERC20Metadata(address(poolInfo.RewardToken)).symbol());
+        // console.log("_poolId: ", _poolId);
+        // console.log("multiplier: ", multiplier);
+        // console.log("poolInfo.RewardPerSecond: ", poolInfo.RewardPerSecond);
 
         if (address(poolInfo.RewardToken) == wftm) {
             // console.log("is wftm");
             uint256 wftmYield = (1 ether * totalTokens) /
                 poolInfo.xBooStakedAmount;
-            console.log("WFTM: ", wftmYield);
+            // console.log("WFTM: ", wftmYield);
             poolYield[_poolId] = wftmYield;
         } else {
             if (totalTokens == 0) {
@@ -1881,16 +1883,16 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
                 address[] memory path = new address[](2);
                 path[0] = address(poolInfo.RewardToken);
                 path[1] = wftm;
-                console.log("totalTokens: ", totalTokens);
+                // console.log("totalTokens: ", totalTokens);
                 uint256 wftmTotalPoolYield = IUniswapRouterETH(uniRouter)
                     .getAmountsOut(totalTokens, path)[1];
                 uint256 wftmYield = (1 ether * wftmTotalPoolYield) /
                     poolInfo.xBooStakedAmount;
-                console.log(
-                    IERC20Metadata(address(poolInfo.RewardToken)).symbol(),
-                    ": ",
-                    wftmYield
-                );
+                // console.log(
+                //     IERC20Metadata(address(poolInfo.RewardToken)).symbol(),
+                //     ": ",
+                //     wftmYield
+                // );
                 poolYield[_poolId] = wftmYield;
             }
         }
@@ -1919,7 +1921,7 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
      * as is treasuryFeeToVault
      */
     function _chargeFees() internal {
-        console.log("_chargeFees()");
+        // console.log("_chargeFees()");
         if (totalFee != 0) {
             uint256 wftmBal = IERC20(wftm).balanceOf(address(this));
             uint256 wftmFee = wftmBal.mul(totalFee).div(PERCENT_DIVISOR);
@@ -1939,14 +1941,14 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
      * It takes into account both the funds in hand, as the funds allocated in the masterChef.
      */
     function balanceOf() public view returns (uint256) {
-        console.log("balanceOf()");
-        console.log("balanceOfRewardToken(): ", balanceOfRewardToken());
-        console.log("balanceOfStakingToken(): ", balanceOfStakingToken());
-        console.log("balanceOfPool(): ", balanceOfPool());
+        // console.log("balanceOf()");
+        // console.log("balanceOfRewardToken(): ", balanceOfRewardToken());
+        // console.log("balanceOfStakingToken(): ", balanceOfStakingToken());
+        // console.log("balanceOfPool(): ", balanceOfPool());
         uint256 balance = balanceOfRewardToken().add(
             balanceOfStakingToken().add(balanceOfPool())
         );
-        console.log(balance);
+        // console.log(balance);
         return balance;
     }
 
@@ -2013,10 +2015,13 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
 
     function giveAllowances() internal {
         // Give xBOO permission to use Boo
+        IERC20(rewardToken).safeApprove(stakingToken, 0);
         IERC20(rewardToken).safeApprove(stakingToken, type(uint256).max);
         // Give xBoo contract permission to stake xBoo
+        IERC20(stakingToken).safeApprove(aceLabAddress, 0);
         IERC20(stakingToken).safeApprove(aceLabAddress, type(uint256).max);
         // Give uniRouter permission to swap wftm to rewardToken
+        IERC20(wftm).safeApprove(uniRouter, 0);
         IERC20(wftm).safeApprove(uniRouter, type(uint256).max);
     }
 
@@ -2027,6 +2032,24 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
         IERC20(stakingToken).safeApprove(aceLabAddress, 0);
         // Give uniRouter permission to swap wftm to rewardToken
         IERC20(wftm).safeApprove(uniRouter, 0);
+        _removePoolAllowances();
+    }
+
+    function _givePoolAllowances() internal {
+        for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
+            uint8 poolId = currentlyUsedPools[index];
+            IAceLab.PoolInfo memory poolInfo = aceLab.poolInfo(poolId);
+            poolInfo.RewardToken.safeApprove(uniRouter, 0);
+            poolInfo.RewardToken.safeApprove(uniRouter, type(uint256).max);
+        }
+    }
+
+    function _removePoolAllowances() internal {
+        for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
+            uint8 poolId = currentlyUsedPools[index];
+            IAceLab.PoolInfo memory poolInfo = aceLab.poolInfo(poolId);
+            poolInfo.RewardToken.safeApprove(uniRouter, 0);
+        }
     }
 
     /**
@@ -2107,11 +2130,14 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
         if (poolRewardToken != wftm) {
             IERC20(poolRewardToken).safeApprove(uniRouter, type(uint256).max);
         }
+        emit PoolAdded(_poolId);
     }
 
     function removeUsedPool(uint8 _poolIndex) external {
         _onlyAuthorized();
         uint8 poolId = currentlyUsedPools[_poolIndex];
+        IAceLab.PoolInfo memory poolInfo = aceLab.poolInfo(poolId);
+        poolInfo.RewardToken.safeApprove(uniRouter, 0);
         uint256 balance = poolBalance[poolId];
         aceLab.withdraw(poolId, balance);
         totalPoolBalance = totalPoolBalance.sub(balance);
@@ -2120,5 +2146,6 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
         uint8 lastPoolId = currentlyUsedPools[lastPoolIndex];
         currentlyUsedPools[_poolIndex] = lastPoolId;
         currentlyUsedPools.pop();
+        emit PoolRemoved(poolId);
     }
 }
