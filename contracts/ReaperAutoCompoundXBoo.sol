@@ -34,11 +34,9 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
      * @dev Third Party Contracts:
      * {uniRouter} - the uniRouter for target DEX
      * {aceLab} - Address to AceLab, the SpookySwap contract to stake xBoo
-     * {currentPoolId} - the currently selected AceLab pool id
      */
     address public uniRouter;
     address public aceLab;
-    uint8 public currentPoolId;
 
     /**
      * @dev Reaper Contracts:
@@ -47,12 +45,6 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
      */
     address public treasury;
     address public vault;
-
-    // /**
-    //  * @dev Contract roles:
-    //  * {strategist} - Address of the strategist responsible for updating strategy related variables
-    //  */
-    // address public strategist;
 
     /**
      * @dev Distribution of fees earned. This allocations relative to the % implemented on
@@ -81,18 +73,34 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
     /**
      * @dev Routes we take to swap tokens
      * {wftmToBooRoute} - Route we take to get from {wftm} into {boo}.
-     * {poolTokenToWftmRoute} - Route we take to get from {pool reward token} into {wftm}.
+     * {poolRewardToWftmPaths} - Routes for each pool to get from {pool reward token} into {wftm}.
      */
     address[] public wftmToBooRoute;
+    mapping(uint8 => address[]) public poolRewardToWftmPaths;
 
+    /**
+     * @dev Variables for pool selection
+     * {currentPoolId} - Pool id for the the current pool the strategy deposits xBoo into
+     * {currentlyUsedPools} - A list of all pool ids currently being used by the strategy
+     * {poolYield} - The estimated yield in wftm for each pool over the next 1 day
+     * {hasAllocatedToPool} - If a given pool id has been deposited into already for a harvest cycle
+     * {WFTM_POOL_ID} - Id for the wftm pool to use as default pool before pool selection
+     * {maxPoolDilutionFactor} - The factor that determines what % of a pools total TVL can be deposited (to avoid dilution)
+     */
+    uint8 public currentPoolId;
     uint8[] public currentlyUsedPools;
     mapping(uint8 => uint256) public poolYield;
     mapping(uint8 => bool) public hasAllocatedToPool;
-    mapping(uint8 => address[]) public poolRewardToWftmPaths;
-    mapping(uint8 => uint256) public poolxBooBalance;
     uint8 private constant WFTM_POOL_ID = 2;
-    uint256 public totalPoolBalance = 0;
     uint8 public maxPoolDilutionFactor = 5;
+
+    /**
+     * @dev Variables for pool selection
+     * {totalPoolBalance} - The total amount of xBoo currently deposited into pools
+     * {poolxBooBalance} - The amount of xBoo deposited into each pool
+     */
+    uint256 public totalPoolBalance = 0;
+    mapping(uint8 => uint256) public poolxBooBalance;
 
     /**
      * {StratHarvest} Event that is fired each time someone harvests the strat.
@@ -102,10 +110,6 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
     event StratHarvest(address indexed harvester);
     event TotalFeeUpdated(uint256 newFee);
     event CallFeeUpdated(uint256 newCallFee, uint256 newTreasuryFee);
-
-    // event StrategistUpdated(address newStrategist);
-    // event PoolAdded(uint8 poolId);
-    // event PoolRemoved(uint8 poolId);
 
     /**
      * @dev Initializes the strategy. Sets parameters, saves routes, and gives allowances.
@@ -128,13 +132,14 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
         wftmToBooRoute = [wftm, boo];
         currentPoolId = WFTM_POOL_ID;
 
-        giveAllowances();
+        _giveAllowances();
     }
 
     /**
      * @dev Function that puts the funds to work.
      * It gets called whenever someone deposits in the strategy's vault contract.
-     * It deposits {boo} into xBoo (BooMirrorWorld) to farm {xBoo}
+     * It deposits {boo} into xBoo (BooMirrorWorld) to farm {xBoo} and finally,
+     * xBoo is deposited into other pools to earn additional rewards
      */
     function deposit() public whenNotPaused {
         uint256 booBalance = IERC20(boo).balanceOf(address(this));
@@ -152,7 +157,7 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
 
     /**
      * @dev Withdraws funds and sents them back to the vault.
-     * It withdraws {boo} from the masterChef.
+     * It withdraws {boo} from the AceLab pools.
      * The available {boo} minus fees is returned to the vault.
      */
     function withdraw(uint256 _amount) external {
@@ -202,11 +207,10 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
 
     /**
      * @dev Core function of the strat, in charge of collecting and re-investing rewards.
-     * 1. It claims rewards from the masterChef.
+     * 1. It claims rewards from the AceLab pools and estimated the current yield for each pool.
      * 2. It charges the system fees to simplify the split.
-     * 3. It swaps the {boo} token for {lpToken0} & {lpToken1}
-     * 4. Adds more liquidity to the pool.
-     * 5. It deposits the new LP tokens.
+     * 3. It swaps the {wftm} token for {Boo} which is deposited into {xBoo}
+     * 4. It distributes the xBoo using a yield optimization algorithm into various pools.
      */
     function harvest() external whenNotPaused {
         require(!Address.isContract(msg.sender), "!contract");
@@ -217,6 +221,10 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
         emit StratHarvest(msg.sender);
     }
 
+    /**
+     * @dev Collects reward tokens from all used pools, swaps it into wftm and estimates
+     * the yield for each pool.
+     */
     function _collectRewardsAndEstimateYield() internal {
         uint256 nrOfUsedPools = currentlyUsedPools.length;
         for (uint256 index = 0; index < nrOfUsedPools; index++) {
@@ -231,6 +239,9 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
         }
     }
 
+    /**
+     * @dev Swaps any pool reward token to wftm
+     */
     function _swapRewardToWftm(uint8 _poolId) internal {
         address[] memory rewardToWftmPaths = poolRewardToWftmPaths[_poolId];
         IAceLab.PoolInfo memory poolInfo = IAceLab(aceLab).poolInfo(_poolId);
@@ -255,6 +266,9 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
         }
     }
 
+    /**
+     * @dev Swaps any pool reward token to wftm
+     */
     function _setEstimatedYield(uint8 _poolId) internal {
         IAceLab.PoolInfo memory poolInfo = IAceLab(aceLab).poolInfo(_poolId);
         uint256 multiplier = _getMultiplier(
@@ -304,6 +318,9 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
         }
     }
 
+    /**
+     * @dev Swaps all {wftm} into {boo} which it deposits into {xBoo}
+     */
     function _compoundRewards() internal {
         uint256 wftmBalance = IERC20(wftm).balanceOf(address(this));
         if (wftmBalance > 0) {
@@ -320,6 +337,10 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
         }
     }
 
+    /**
+     * @dev Deposits into the highest yielding pool, up to a cap set by {maxPoolDilutionFactor}
+     * If xBoo remains to be deposited picks the 2nd highest yielding pool and so on.
+     */
     function _rebalance() internal {
         uint256 xBooBalance = IERC20(xBoo).balanceOf(address(this));
         while (xBooBalance > 0) {
@@ -365,7 +386,10 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
         }
     }
 
-    // Return reward multiplier over the given _from to _to block.
+    /**
+     * @dev Returns the amount of seconds during a given timespan and pool where
+     * the pool is issuing rewards. Taken from the AceLab contract.
+     */
     function _getMultiplier(
         uint256 _from,
         uint256 _to,
@@ -383,7 +407,7 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
 
     /**
      * @dev Function to calculate the total underlaying {boo} held by the strat.
-     * It takes into account both the funds in hand, as the funds allocated in the masterChef.
+     * It takes into account both the funds in hand, as the funds allocated in xBoo and the AceLab pools.
      */
     function balanceOf() public view returns (uint256) {
         uint256 balance = balanceOfBoo().add(
@@ -400,7 +424,7 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
     }
 
     /**
-     * @dev It calculates how much {boo} the contract has staked.
+     * @dev It calculates how much {boo} the contract has staked as xBoo.
      */
     function balanceOfxBoo() public view returns (uint256) {
         return IBooMirrorWorld(xBoo).BOOBalance(address(this));
@@ -437,7 +461,7 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
     }
 
     /**
-     * @dev Pauses deposits. Withdraws all funds from the AceLab contract, leaving rewards behind
+     * @dev Pauses deposits. Withdraws all funds from the AceLab contract, leaving rewards behind.
      */
     function panic() public onlyOwner {
         pause();
@@ -457,7 +481,7 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
      */
     function pause() public onlyOwner {
         _pause();
-        removeAllowances();
+        _removeAllowances();
     }
 
     /**
@@ -466,12 +490,18 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
     function unpause() external onlyOwner {
         _unpause();
 
-        giveAllowances();
+        _giveAllowances();
 
         deposit();
     }
 
-    function giveAllowances() internal {
+    /**
+     * @dev Gives max allowance of {boo} for the {xBoo} contract,
+     * {xBoo} allowance for the {aceLab} contract,
+     * {wftm} allowance for the {uniRouter}
+     * in addition to allowance to all pool rewards for the {uniRouter}.
+     */
+    function _giveAllowances() internal {
         // Give xBOO permission to use Boo
         IERC20(boo).safeApprove(xBoo, 0);
         IERC20(boo).safeApprove(xBoo, type(uint256).max);
@@ -484,7 +514,13 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
         _givePoolAllowances();
     }
 
-    function removeAllowances() internal {
+    /**
+     * @dev Removes all allowance of {boo} for the {xBoo} contract,
+     * {xBoo} allowance for the {aceLab} contract,
+     * {wftm} allowance for the {uniRouter}
+     * in addition to allowance to all pool rewards for the {uniRouter}.
+     */
+    function _removeAllowances() internal {
         // Give xBOO permission to use Boo
         IERC20(boo).safeApprove(xBoo, 0);
         // Give xBoo contract permission to stake xBoo
@@ -494,6 +530,9 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
         _removePoolAllowances();
     }
 
+    /**
+     * @dev Gives max allowance to all pool rewards for the {uniRouter}.
+     */
     function _givePoolAllowances() internal {
         for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
             uint8 poolId = currentlyUsedPools[index];
@@ -503,6 +542,9 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
         }
     }
 
+    /**
+     * @dev Removes all allowance to all pool rewards for the {uniRouter}.
+     */
     function _removePoolAllowances() internal {
         for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
             uint8 poolId = currentlyUsedPools[index];
@@ -535,6 +577,9 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
         return true;
     }
 
+    /**
+     * @dev updates the treasury
+     */
     function updateTreasury(address newTreasury)
         external
         onlyOwner
@@ -544,41 +589,25 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
         return true;
     }
 
+    /**
+     * @dev updates the {maxPoolDilutionFactor}
+     */
     function updateMaxPoolDilutionFactor(uint8 _maxPoolDilutionFactor)
         external
         onlyOwner
     {
-        // _onlyAuthorized();
         require(_maxPoolDilutionFactor > 0, "Must be a positive number");
         maxPoolDilutionFactor = _maxPoolDilutionFactor;
     }
 
-    // function _onlyAuthorized() internal view {
-    //     require(
-    //         msg.sender == strategist || msg.sender == owner(),
-    //         "Not authorized"
-    //     );
-    // }
-
-    // /**
-    //  * @notice
-    //  *  Used to change `strategist`.
-    //  *
-    //  *  This may only be called by governance or the existing strategist.
-    //  * @param _strategist The new address to assign as `strategist`.
-    //  */
-    // function setStrategist(address _strategist) external {
-    //     _onlyAuthorized();
-    //     require(_strategist != address(0), "Cant use the 0 address");
-    //     strategist = _strategist;
-    //     emit StrategistUpdated(strategist);
-    // }
-
+    /**
+     * @dev Adds a pool from the {aceLab} contract to be actively used to yield.
+     * _poolRewardToWftmPaths can be empty if the paths are standard rewardToken -> wftm
+     */
     function addUsedPool(uint8 _poolId, address[] memory _poolRewardToWftmPaths)
         external
         onlyOwner
     {
-        // _onlyAuthorized();
         currentlyUsedPools.push(_poolId);
         poolRewardToWftmPaths[_poolId] = _poolRewardToWftmPaths;
         address poolRewardToken;
@@ -593,22 +622,22 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
         if (poolRewardToken != wftm) {
             IERC20(poolRewardToken).safeApprove(uniRouter, type(uint256).max);
         }
-        // emit PoolAdded(_poolId);
     }
 
+    /**
+     * @dev Removes a pool that will no longer be used.
+     */
     // function removeUsedPool(uint8 _poolIndex) external onlyOwner {
-    //     // _onlyAuthorized();
     //     uint8 poolId = currentlyUsedPools[_poolIndex];
-    //     IAceLab.PoolInfo memory poolInfo = aceLab.poolInfo(poolId);
+    //     IAceLab.PoolInfo memory poolInfo = IAceLab(aceLab).poolInfo(poolId);
     //     poolInfo.RewardToken.safeApprove(uniRouter, 0);
     //     uint256 balance = poolxBooBalance[poolId];
-    //     aceLab.withdraw(poolId, balance);
+    //     IAceLab(aceLab).withdraw(poolId, balance);
     //     totalPoolBalance = totalPoolBalance.sub(balance);
     //     poolxBooBalance[poolId] = 0;
     //     uint256 lastPoolIndex = currentlyUsedPools.length - 1;
     //     uint8 lastPoolId = currentlyUsedPools[lastPoolIndex];
     //     currentlyUsedPools[_poolIndex] = lastPoolId;
     //     currentlyUsedPools.pop();
-    //     // emit PoolRemoved(poolId);
     // }
 }
