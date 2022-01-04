@@ -187,12 +187,14 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
                 uint8 poolId = currentlyUsedPools[index];
                 uint256 currentPoolxBooBalance = poolxBooBalance[poolId];
                 if (currentPoolxBooBalance > 0) {
-                    uint256 remainingAmount = _amount - booBalance;
+                    uint256 remainingBooAmount = _amount - booBalance;
+                    uint256 remainingxBooAmount = IBooMirrorWorld(xBoo)
+                        .BOOForxBOO(remainingBooAmount);
                     uint256 withdrawAmount;
-                    if (remainingAmount > currentPoolxBooBalance) {
+                    if (remainingxBooAmount > currentPoolxBooBalance) {
                         withdrawAmount = currentPoolxBooBalance;
                     } else {
-                        withdrawAmount = remainingAmount;
+                        withdrawAmount = remainingxBooAmount;
                     }
                     aceLab.withdraw(poolId, withdrawAmount);
                     totalPoolBalance = totalPoolBalance.sub(withdrawAmount);
@@ -446,10 +448,10 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
      */
     function balanceOf() public view returns (uint256) {
         // console.log("balanceOf()");
-        // console.log("balanceOfRewardToken(): ", balanceOfRewardToken());
+        // console.log("balanceOfBoo(): ", balanceOfBoo());
         // console.log("balanceOfxBoo(): ", balanceOfxBoo());
         // console.log("balanceOfPool(): ", balanceOfPool());
-        uint256 balance = balanceOfRewardToken().add(
+        uint256 balance = balanceOfBoo().add(
             balanceOfxBoo().add(balanceOfPool())
         );
         // console.log(balance);
@@ -459,7 +461,7 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
     /**
      * @dev It calculates how much {boo} the contract holds.
      */
-    function balanceOfRewardToken() public view returns (uint256) {
+    function balanceOfBoo() public view returns (uint256) {
         return IERC20(boo).balanceOf(address(this));
     }
 
@@ -488,7 +490,10 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
             uint8 poolId = currentlyUsedPools[index];
             uint256 balance = poolxBooBalance[poolId];
             aceLab.withdraw(poolId, balance);
+            _swapRewardToWftm(poolId);
         }
+
+        _compoundRewards();
 
         uint256 xBooBalance = IERC20(xBoo).balanceOf(address(this));
         IBooMirrorWorld(xBoo).leave(xBooBalance);
