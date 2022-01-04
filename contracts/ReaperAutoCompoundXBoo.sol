@@ -238,83 +238,6 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
         emit StratHarvest(msg.sender);
     }
 
-    function _rebalance() internal {
-        // console.log("rebalance()");
-        uint256 stakingBal = IERC20(stakingToken).balanceOf(address(this));
-        while (stakingBal > 0) {
-            uint256 bestYield = 0;
-            uint8 bestYieldPoolId = WFTM_POOL_ID;
-            uint256 bestYieldIndex = 0;
-            for (
-                uint256 index = 0;
-                index < currentlyUsedPools.length;
-                index++
-            ) {
-                uint8 poolId = currentlyUsedPools[index];
-                if (hasAllocatedToPool[poolId] == false) {
-                    uint256 currentPoolYield = poolYield[poolId];
-                    if (currentPoolYield >= bestYield) {
-                        bestYield = currentPoolYield;
-                        bestYieldPoolId = poolId;
-                        bestYieldIndex = index;
-                    }
-                }
-            }
-            uint256 poolDepositAmount = stakingBal;
-            IAceLab.PoolInfo memory poolInfo = aceLab.poolInfo(bestYieldPoolId);
-            bool isNotWFTM = address(poolInfo.RewardToken) != wftm;
-            // console.log("isNotWFTM: ", isNotWFTM);
-            // console.log("poolDepositAmount: ", poolDepositAmount);
-            // console.log(
-            //     "poolInfo.xBooStakedAmount / maxPoolDilutionFactor: ",
-            //     poolInfo.xBooStakedAmount / maxPoolDilutionFactor
-            // );
-            // console.log(
-            //     "isNotWFTM && poolDepositAmount > (poolInfo.xBooStakedAmount / maxPoolDilutionFactor): ",
-            //     isNotWFTM &&
-            //         poolDepositAmount >
-            //         (poolInfo.xBooStakedAmount / maxPoolDilutionFactor)
-            // );
-            if (
-                isNotWFTM &&
-                poolDepositAmount >
-                (poolInfo.xBooStakedAmount / maxPoolDilutionFactor)
-            ) {
-                poolDepositAmount =
-                    poolInfo.xBooStakedAmount /
-                    maxPoolDilutionFactor;
-            }
-            // console.log("aceLab.deposit: ", poolDepositAmount);
-            // console.log("into pool: ", bestYieldPoolId);
-            aceLab.deposit(bestYieldPoolId, poolDepositAmount);
-            totalPoolBalance = totalPoolBalance.add(poolDepositAmount);
-            poolBalance[bestYieldPoolId] = poolBalance[bestYieldPoolId].add(
-                poolDepositAmount
-            );
-            hasAllocatedToPool[bestYieldPoolId] = true;
-            stakingBal = IERC20(stakingToken).balanceOf(address(this));
-            currentPoolId = bestYieldPoolId;
-        }
-    }
-
-    function _compoundRewards() internal {
-        // console.log("_compoundRewards()");
-        uint256 wftmBal = IERC20(wftm).balanceOf(address(this));
-        // console.log("wftmBal: ", wftmBal);
-        if (wftmBal > 0) {
-            IUniswapRouterETH(uniRouter)
-                .swapExactTokensForTokensSupportingFeeOnTransferTokens(
-                    wftmBal,
-                    0,
-                    wftmToRewardTokenRoute,
-                    address(this),
-                    block.timestamp.add(600)
-                );
-            uint256 rewardBal = IERC20(rewardToken).balanceOf(address(this));
-            IBooMirrorWorld(stakingToken).enter(rewardBal);
-        }
-    }
-
     function _collectRewardsAndEstimateYield() internal {
         // console.log("_collectRewardsAndEstimateYield()");
         uint256 nrOfUsedPools = currentlyUsedPools.length;
@@ -330,6 +253,7 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
             poolBalance[poolId] = 0;
             _swapRewardToWftm(poolId);
             _setEstimatedYield(poolId);
+            hasAllocatedToPool[poolId] = false;
         }
     }
 
@@ -405,23 +329,6 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
                 poolYield[_poolId] = wftmYield;
             }
         }
-        hasAllocatedToPool[_poolId] = false;
-    }
-
-    // Return reward multiplier over the given _from to _to block.
-    function _getMultiplier(
-        uint256 _from,
-        uint256 _to,
-        IAceLab.PoolInfo memory pool
-    ) internal pure returns (uint256) {
-        _from = _from > pool.startTime ? _from : pool.startTime;
-        if (_from > pool.endTime || _to < pool.startTime) {
-            return 0;
-        }
-        if (_to > pool.endTime) {
-            return pool.endTime - _from;
-        }
-        return _to - _from;
     }
 
     /**
@@ -443,6 +350,99 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
             );
             IERC20(wftm).safeTransfer(treasury, treasuryFeeToVault);
         }
+    }
+
+    function _compoundRewards() internal {
+        // console.log("_compoundRewards()");
+        uint256 wftmBal = IERC20(wftm).balanceOf(address(this));
+        // console.log("wftmBal: ", wftmBal);
+        if (wftmBal > 0) {
+            IUniswapRouterETH(uniRouter)
+                .swapExactTokensForTokensSupportingFeeOnTransferTokens(
+                    wftmBal,
+                    0,
+                    wftmToRewardTokenRoute,
+                    address(this),
+                    block.timestamp.add(600)
+                );
+            uint256 rewardBal = IERC20(rewardToken).balanceOf(address(this));
+            IBooMirrorWorld(stakingToken).enter(rewardBal);
+        }
+    }
+
+    function _rebalance() internal {
+        // console.log("rebalance()");
+        uint256 stakingBal = IERC20(stakingToken).balanceOf(address(this));
+        while (stakingBal > 0) {
+            uint256 bestYield = 0;
+            uint8 bestYieldPoolId = WFTM_POOL_ID;
+            uint256 bestYieldIndex = 0;
+            for (
+                uint256 index = 0;
+                index < currentlyUsedPools.length;
+                index++
+            ) {
+                uint8 poolId = currentlyUsedPools[index];
+                if (hasAllocatedToPool[poolId] == false) {
+                    uint256 currentPoolYield = poolYield[poolId];
+                    if (currentPoolYield >= bestYield) {
+                        bestYield = currentPoolYield;
+                        bestYieldPoolId = poolId;
+                        bestYieldIndex = index;
+                    }
+                }
+            }
+            uint256 poolDepositAmount = stakingBal;
+            IAceLab.PoolInfo memory poolInfo = aceLab.poolInfo(bestYieldPoolId);
+            bool isNotWFTM = address(poolInfo.RewardToken) != wftm;
+            // console.log("isNotWFTM: ", isNotWFTM);
+            // console.log("poolDepositAmount: ", poolDepositAmount);
+            // console.log(
+            //     "poolInfo.xBooStakedAmount / maxPoolDilutionFactor: ",
+            //     poolInfo.xBooStakedAmount / maxPoolDilutionFactor
+            // );
+            // console.log(
+            //     "isNotWFTM && poolDepositAmount > (poolInfo.xBooStakedAmount / maxPoolDilutionFactor): ",
+            //     isNotWFTM &&
+            //         poolDepositAmount >
+            //         (poolInfo.xBooStakedAmount / maxPoolDilutionFactor)
+            // );
+            if (
+                isNotWFTM &&
+                poolDepositAmount >
+                (poolInfo.xBooStakedAmount / maxPoolDilutionFactor)
+            ) {
+                poolDepositAmount =
+                    poolInfo.xBooStakedAmount /
+                    maxPoolDilutionFactor;
+            }
+            // console.log("aceLab.deposit: ", poolDepositAmount);
+            // console.log("into pool: ", bestYieldPoolId);
+            aceLab.deposit(bestYieldPoolId, poolDepositAmount);
+            totalPoolBalance = totalPoolBalance.add(poolDepositAmount);
+            poolBalance[bestYieldPoolId] = poolBalance[bestYieldPoolId].add(
+                poolDepositAmount
+            );
+            hasAllocatedToPool[bestYieldPoolId] = true;
+            stakingBal = IERC20(stakingToken).balanceOf(address(this));
+            currentPoolId = bestYieldPoolId;
+        }
+    }
+
+    // Return reward multiplier over the given _from to _to block.
+    function _getMultiplier(
+        uint256 _from,
+        uint256 _to,
+        IAceLab.PoolInfo memory pool
+    ) internal pure returns (uint256) {
+        _from = _from > pool.startTime ? _from : pool.startTime;
+        if (_from > pool.endTime || _to < pool.startTime) {
+            return 0;
+        }
+        if (_to > pool.endTime) {
+            return pool.endTime - _from;
+        }
+        return _to - _from;
     }
 
     /**
@@ -547,6 +547,7 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
         // Give uniRouter permission to swap wftm to rewardToken
         IERC20(wftm).safeApprove(uniRouter, 0);
         IERC20(wftm).safeApprove(uniRouter, type(uint256).max);
+        _givePoolAllowances();
     }
 
     function removeAllowances() internal {
