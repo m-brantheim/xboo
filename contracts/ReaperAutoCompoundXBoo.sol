@@ -99,7 +99,7 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
     mapping(uint8 => uint256) public poolYield;
     mapping(uint8 => bool) public hasAllocatedToPool;
     mapping(uint8 => address[]) public poolRewardToWftmPaths;
-    mapping(uint8 => uint256) public poolBalance;
+    mapping(uint8 => uint256) public poolxBooBalance;
     uint8 private constant WFTM_POOL_ID = 2;
     uint256 public totalPoolBalance = 0;
     uint8 public maxPoolDilutionFactor = 5;
@@ -149,21 +149,21 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
      */
     function deposit() public whenNotPaused {
         // console.log("deposit()");
-        uint256 tokenBal = IERC20(boo).balanceOf(address(this));
+        uint256 booBalance = IERC20(boo).balanceOf(address(this));
 
-        if (tokenBal > 0) {
-            IBooMirrorWorld(xBoo).enter(tokenBal);
-            // console.log(".enter(tokenBal): ", tokenBal);
-            uint256 xBooBal = IERC20(xBoo).balanceOf(address(this));
-            aceLab.deposit(currentPoolId, xBooBal);
+        if (booBalance > 0) {
+            IBooMirrorWorld(xBoo).enter(booBalance);
+            // console.log(".enter(booBalance): ", booBalance);
+            uint256 xBooBalance = IERC20(xBoo).balanceOf(address(this));
+            aceLab.deposit(currentPoolId, xBooBalance);
             // console.log("currentPoolId: ", currentPoolId);
             // console.log(
-            //     ".deposit(currentPoolId, xBooBal): ",
-            //     xBooBal
+            //     ".deposit(currentPoolId, xBooBalance): ",
+            //     xBooBalance
             // );
-            totalPoolBalance = totalPoolBalance.add(xBooBal);
-            poolBalance[currentPoolId] = poolBalance[currentPoolId].add(
-                xBooBal
+            totalPoolBalance = totalPoolBalance.add(xBooBalance);
+            poolxBooBalance[currentPoolId] = poolxBooBalance[currentPoolId].add(
+                xBooBalance
             );
         }
     }
@@ -176,44 +176,44 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
     function withdraw(uint256 _amount) external {
         require(msg.sender == vault, "!vault");
 
-        uint256 tokenBal = IERC20(boo).balanceOf(address(this));
+        uint256 booBalance = IERC20(boo).balanceOf(address(this));
 
-        if (tokenBal < _amount) {
+        if (booBalance < _amount) {
             for (
                 uint256 index = 0;
                 index < currentlyUsedPools.length;
                 index++
             ) {
                 uint8 poolId = currentlyUsedPools[index];
-                uint256 currentPoolBalance = poolBalance[poolId];
-                if (currentPoolBalance > 0) {
-                    uint256 remainingAmount = _amount - tokenBal;
+                uint256 currentPoolxBooBalance = poolxBooBalance[poolId];
+                if (currentPoolxBooBalance > 0) {
+                    uint256 remainingAmount = _amount - booBalance;
                     uint256 withdrawAmount;
-                    if (remainingAmount > currentPoolBalance) {
-                        withdrawAmount = currentPoolBalance;
+                    if (remainingAmount > currentPoolxBooBalance) {
+                        withdrawAmount = currentPoolxBooBalance;
                     } else {
                         withdrawAmount = remainingAmount;
                     }
                     aceLab.withdraw(poolId, withdrawAmount);
                     totalPoolBalance = totalPoolBalance.sub(withdrawAmount);
-                    poolBalance[poolId] = poolBalance[poolId].sub(
+                    poolxBooBalance[poolId] = poolxBooBalance[poolId].sub(
                         withdrawAmount
                     );
-                    uint256 xBooBal = IERC20(xBoo).balanceOf(address(this));
-                    IBooMirrorWorld(xBoo).leave(xBooBal);
-                    tokenBal = IERC20(boo).balanceOf(address(this));
-                    if (tokenBal >= _amount) {
+                    uint256 xBooBalance = IERC20(xBoo).balanceOf(address(this));
+                    IBooMirrorWorld(xBoo).leave(xBooBalance);
+                    booBalance = IERC20(boo).balanceOf(address(this));
+                    if (booBalance >= _amount) {
                         break;
                     }
                 }
             }
         }
 
-        if (tokenBal > _amount) {
-            tokenBal = _amount;
+        if (booBalance > _amount) {
+            booBalance = _amount;
         }
-        uint256 withdrawFee = tokenBal.mul(securityFee).div(PERCENT_DIVISOR);
-        IERC20(boo).safeTransfer(vault, tokenBal.sub(withdrawFee));
+        uint256 withdrawFee = booBalance.mul(securityFee).div(PERCENT_DIVISOR);
+        IERC20(boo).safeTransfer(vault, booBalance.sub(withdrawFee));
     }
 
     /**
@@ -241,12 +241,12 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
             uint8 poolId = currentlyUsedPools[index];
             // console.log("poolId: ", poolId);
             // uint256 pendingReward = aceLab.pendingReward(poolId, address(this));
-            uint256 currentPoolBalance = poolBalance[poolId];
+            uint256 currentPoolxBooBalance = poolxBooBalance[poolId];
             // console.log("pendingReward: ", pendingReward);
-            // console.log("currentPoolBalance: ", currentPoolBalance);
-            aceLab.withdraw(poolId, currentPoolBalance);
-            totalPoolBalance = totalPoolBalance.sub(currentPoolBalance);
-            poolBalance[poolId] = 0;
+            // console.log("currentPoolxBooBalance: ", currentPoolxBooBalance);
+            aceLab.withdraw(poolId, currentPoolxBooBalance);
+            totalPoolBalance = totalPoolBalance.sub(currentPoolxBooBalance);
+            poolxBooBalance[poolId] = 0;
             _swapRewardToWftm(poolId);
             _setEstimatedYield(poolId);
             hasAllocatedToPool[poolId] = false;
@@ -416,9 +416,8 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
             // console.log("into pool: ", bestYieldPoolId);
             aceLab.deposit(bestYieldPoolId, poolDepositAmount);
             totalPoolBalance = totalPoolBalance.add(poolDepositAmount);
-            poolBalance[bestYieldPoolId] = poolBalance[bestYieldPoolId].add(
-                poolDepositAmount
-            );
+            poolxBooBalance[bestYieldPoolId] = poolxBooBalance[bestYieldPoolId]
+                .add(poolDepositAmount);
             hasAllocatedToPool[bestYieldPoolId] = true;
             xBooBalance = IERC20(xBoo).balanceOf(address(this));
             currentPoolId = bestYieldPoolId;
@@ -487,15 +486,15 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
 
         for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
             uint8 poolId = currentlyUsedPools[index];
-            uint256 balance = poolBalance[poolId];
+            uint256 balance = poolxBooBalance[poolId];
             aceLab.withdraw(poolId, balance);
         }
 
-        uint256 xBooBal = IERC20(xBoo).balanceOf(address(this));
-        IBooMirrorWorld(xBoo).leave(xBooBal);
+        uint256 xBooBalance = IERC20(xBoo).balanceOf(address(this));
+        IBooMirrorWorld(xBoo).leave(xBooBalance);
 
-        uint256 rewardTokenBal = IERC20(boo).balanceOf(address(this));
-        IERC20(boo).transfer(vault, rewardTokenBal);
+        uint256 booBalance = IERC20(boo).balanceOf(address(this));
+        IERC20(boo).transfer(vault, booBalance);
     }
 
     /**
@@ -507,11 +506,11 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
             uint8 poolId = currentlyUsedPools[index];
             aceLab.emergencyWithdraw(poolId);
         }
-        uint256 xBooBal = IERC20(xBoo).balanceOf(address(this));
-        IBooMirrorWorld(xBoo).leave(xBooBal);
+        uint256 xBooBalance = IERC20(xBoo).balanceOf(address(this));
+        IBooMirrorWorld(xBoo).leave(xBooBalance);
 
-        uint256 rewardTokenBal = IERC20(boo).balanceOf(address(this));
-        IERC20(boo).transfer(vault, rewardTokenBal);
+        uint256 booBalance = IERC20(boo).balanceOf(address(this));
+        IERC20(boo).transfer(vault, booBalance);
     }
 
     /**
@@ -661,10 +660,10 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
     //     uint8 poolId = currentlyUsedPools[_poolIndex];
     //     IAceLab.PoolInfo memory poolInfo = aceLab.poolInfo(poolId);
     //     poolInfo.RewardToken.safeApprove(uniRouter, 0);
-    //     uint256 balance = poolBalance[poolId];
+    //     uint256 balance = poolxBooBalance[poolId];
     //     aceLab.withdraw(poolId, balance);
     //     totalPoolBalance = totalPoolBalance.sub(balance);
-    //     poolBalance[poolId] = 0;
+    //     poolxBooBalance[poolId] = 0;
     //     uint256 lastPoolIndex = currentlyUsedPools.length - 1;
     //     uint8 lastPoolId = currentlyUsedPools[lastPoolIndex];
     //     currentlyUsedPools[_poolIndex] = lastPoolId;
