@@ -161,7 +161,7 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
      * The available {boo} minus fees is returned to the vault.
      */
     function withdraw(uint256 _amount) external {
-        require(msg.sender == vault, "!vault");
+        require(msg.sender == vault);
 
         uint256 booBalance = IERC20(boo).balanceOf(address(this));
 
@@ -213,7 +213,7 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
      * 4. It distributes the xBoo using a yield optimization algorithm into various pools.
      */
     function harvest() external whenNotPaused {
-        require(!Address.isContract(msg.sender), "!contract");
+        require(!Address.isContract(msg.sender));
         _collectRewardsAndEstimateYield();
         _chargeFees();
         _compoundRewards();
@@ -244,15 +244,13 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
      */
     function _swapRewardToWftm(uint8 _poolId) internal {
         address[] memory rewardToWftmPaths = poolRewardToWftmPaths[_poolId];
-        IAceLab.PoolInfo memory poolInfo = IAceLab(aceLab).poolInfo(_poolId);
-        uint256 poolRewardTokenBal = poolInfo.RewardToken.balanceOf(
-            address(this)
-        );
-        if (poolRewardTokenBal > 0 && address(poolInfo.RewardToken) != wftm) {
+        IERC20 rewardToken = IAceLab(aceLab).poolInfo(_poolId).RewardToken;
+        uint256 poolRewardTokenBal = rewardToken.balanceOf(address(this));
+        if (poolRewardTokenBal > 0 && address(rewardToken) != wftm) {
             // Default to support empty or incomplete path array
             if (rewardToWftmPaths.length < 2) {
                 rewardToWftmPaths = new address[](2);
-                rewardToWftmPaths[0] = address(poolInfo.RewardToken);
+                rewardToWftmPaths[0] = address(rewardToken);
                 rewardToWftmPaths[1] = wftm;
             }
             IUniswapRouterETH(uniRouter)
@@ -429,7 +427,7 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
      * vault, ready to be migrated to the new strat.
      */
     function retireStrat() external {
-        require(msg.sender == vault, "!vault");
+        require(msg.sender == vault);
 
         for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
             uint8 poolId = currentlyUsedPools[index];
@@ -522,10 +520,11 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
      */
     function _givePoolAllowances() internal {
         for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
-            uint8 poolId = currentlyUsedPools[index];
-            IAceLab.PoolInfo memory poolInfo = IAceLab(aceLab).poolInfo(poolId);
-            poolInfo.RewardToken.safeApprove(uniRouter, 0);
-            poolInfo.RewardToken.safeApprove(uniRouter, type(uint256).max);
+            IERC20 rewardToken = IAceLab(aceLab)
+                .poolInfo(currentlyUsedPools[index])
+                .RewardToken;
+            rewardToken.safeApprove(uniRouter, 0);
+            rewardToken.safeApprove(uniRouter, type(uint256).max);
         }
     }
 
@@ -535,8 +534,10 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
     function _removePoolAllowances() internal {
         for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
             uint8 poolId = currentlyUsedPools[index];
-            IAceLab.PoolInfo memory poolInfo = IAceLab(aceLab).poolInfo(poolId);
-            poolInfo.RewardToken.safeApprove(uniRouter, 0);
+            IAceLab(aceLab).poolInfo(poolId).RewardToken.safeApprove(
+                uniRouter,
+                0
+            );
         }
     }
 
@@ -548,7 +549,7 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
         onlyOwner
         returns (bool)
     {
-        require(_totalFee <= MAX_FEE, "Fee Too High");
+        require(_totalFee <= MAX_FEE);
         totalFee = _totalFee;
         emit TotalFeeUpdated(totalFee);
         return true;
@@ -583,7 +584,7 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
         external
         onlyOwner
     {
-        require(_maxPoolDilutionFactor > 0, "Must be a positive number");
+        require(_maxPoolDilutionFactor > 0);
         maxPoolDilutionFactor = _maxPoolDilutionFactor;
     }
 
@@ -601,10 +602,9 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
         if (_poolRewardToWftmPaths.length > 0) {
             poolRewardToken = _poolRewardToWftmPaths[0];
         } else {
-            IAceLab.PoolInfo memory poolInfo = IAceLab(aceLab).poolInfo(
-                _poolId
+            poolRewardToken = address(
+                IAceLab(aceLab).poolInfo(_poolId).RewardToken
             );
-            poolRewardToken = address(poolInfo.RewardToken);
         }
         if (poolRewardToken != wftm) {
             IERC20(poolRewardToken).safeApprove(uniRouter, type(uint256).max);
@@ -614,17 +614,16 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
     /**
      * @dev Removes a pool that will no longer be used.
      */
-    // function removeUsedPool(uint8 _poolIndex) external onlyOwner {
-    //     uint8 poolId = currentlyUsedPools[_poolIndex];
-    //     IAceLab.PoolInfo memory poolInfo = IAceLab(aceLab).poolInfo(poolId);
-    //     poolInfo.RewardToken.safeApprove(uniRouter, 0);
-    //     uint256 balance = poolxBooBalance[poolId];
-    //     IAceLab(aceLab).withdraw(poolId, balance);
-    //     totalPoolBalance = totalPoolBalance.sub(balance);
-    //     poolxBooBalance[poolId] = 0;
-    //     uint256 lastPoolIndex = currentlyUsedPools.length - 1;
-    //     uint8 lastPoolId = currentlyUsedPools[lastPoolIndex];
-    //     currentlyUsedPools[_poolIndex] = lastPoolId;
-    //     currentlyUsedPools.pop();
-    // }
+    function removeUsedPool(uint8 _poolIndex) external onlyOwner {
+        uint8 poolId = currentlyUsedPools[_poolIndex];
+        IAceLab(aceLab).poolInfo(poolId).RewardToken.safeApprove(uniRouter, 0);
+        uint256 balance = poolxBooBalance[poolId];
+        IAceLab(aceLab).withdraw(poolId, balance);
+        totalPoolBalance = totalPoolBalance.sub(balance);
+        poolxBooBalance[poolId] = 0;
+        uint256 lastPoolIndex = currentlyUsedPools.length - 1;
+        uint8 lastPoolId = currentlyUsedPools[lastPoolIndex];
+        currentlyUsedPools[_poolIndex] = lastPoolId;
+        currentlyUsedPools.pop();
+    }
 }
