@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
 
+import "./abstract/Ownable.sol";
+import "./abstract/Pausable.sol";
 import "./abstract/ReaperBaseStrategy.sol";
 import "./interfaces/IERC20.sol";
 import "./interfaces/IAceLab.sol";
@@ -7,7 +9,8 @@ import "./interfaces/IBooMirrorWorld.sol";
 import "./interfaces/IUniswapRouterETH.sol";
 import "./libraries/SafeERC20.sol";
 import "./libraries/SafeMath.sol";
-import "./libraries/AceLabPoolManager.sol";
+
+import "hardhat/console.sol";
 
 pragma solidity 0.8.9;
 
@@ -17,9 +20,8 @@ pragma solidity 0.8.9;
  */
 contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     using SafeERC20 for IERC20;
-    // using Address for address;
+    using Address for address;
     using SafeMath for uint256;
-    using AceLabPoolManager for uint8[];
 
     /**
      * @dev Tokens Used:
@@ -165,15 +167,36 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         uint256 booBalance = IERC20(boo).balanceOf(address(this));
 
         if (booBalance < _amount) {
-            totalPoolBalance = currentlyUsedPools.withdraw(
-                _amount,
-                booBalance,
-                totalPoolBalance,
-                poolxBooBalance,
-                aceLab,
-                xBoo,
-                boo
-            );
+            for (
+                uint256 index = 0;
+                index < currentlyUsedPools.length;
+                index++
+            ) {
+                uint8 poolId = currentlyUsedPools[index];
+                uint256 currentPoolxBooBalance = poolxBooBalance[poolId];
+                if (currentPoolxBooBalance > 0) {
+                    uint256 remainingBooAmount = _amount - booBalance;
+                    uint256 remainingxBooAmount = IBooMirrorWorld(xBoo)
+                        .BOOForxBOO(remainingBooAmount);
+                    uint256 withdrawAmount;
+                    if (remainingxBooAmount > currentPoolxBooBalance) {
+                        withdrawAmount = currentPoolxBooBalance;
+                    } else {
+                        withdrawAmount = remainingxBooAmount;
+                    }
+                    IAceLab(aceLab).withdraw(poolId, withdrawAmount);
+                    totalPoolBalance = totalPoolBalance.sub(withdrawAmount);
+                    poolxBooBalance[poolId] = poolxBooBalance[poolId].sub(
+                        withdrawAmount
+                    );
+                    uint256 xBooBalance = IERC20(xBoo).balanceOf(address(this));
+                    IBooMirrorWorld(xBoo).leave(xBooBalance);
+                    booBalance = IERC20(boo).balanceOf(address(this));
+                    if (booBalance >= _amount) {
+                        break;
+                    }
+                }
+            }
         }
 
         if (booBalance > _amount) {
@@ -207,7 +230,20 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         override
         returns (uint256 profit, uint256 callFeeToUser)
     {
-        profit = currentlyUsedPools.estimateHarvest(aceLab, uniRouter);
+        for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
+            uint8 poolId = currentlyUsedPools[index];
+            uint256 pendingReward = IAceLab(aceLab).pendingReward(
+                poolId,
+                address(this)
+            );
+            address[] memory path = new address[](2);
+            path[0] = address(IAceLab(aceLab).poolInfo(poolId).RewardToken);
+            path[1] = wftm;
+
+            uint256[] memory amountOutMins = IUniswapRouterETH(uniRouter)
+                .getAmountsOut(pendingReward, path);
+            profit = profit.add(amountOutMins[1]);
+        }
 
         // // take out fees from profit
         uint256 wftmFee = profit.mul(totalFee).div(PERCENT_DIVISOR);
@@ -220,14 +256,80 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      * the yield for each pool.
      */
     function _collectRewardsAndEstimateYield() internal {
-        currentlyUsedPools.collectRewardsAndEstimateYield(
-            poolxBooBalance,
-            hasAllocatedToPool,
-            poolYield,
-            aceLab,
-            uniRouter
-        );
-        totalPoolBalance = 0;
+        uint256 nrOfUsedPools = currentlyUsedPools.length;
+        for (uint256 index = 0; index < nrOfUsedPools; index++) {
+            uint8 poolId = currentlyUsedPools[index];
+            uint256 currentPoolxBooBalance = poolxBooBalance[poolId];
+            IAceLab(aceLab).withdraw(poolId, currentPoolxBooBalance);
+            totalPoolBalance = totalPoolBalance.sub(currentPoolxBooBalance);
+            poolxBooBalance[poolId] = 0;
+            _swapRewardToWftm(poolId);
+            _setEstimatedYield(poolId);
+            hasAllocatedToPool[poolId] = false;
+        }
+    }
+
+    /**
+     * @dev Swaps any pool reward token to wftm
+     */
+    function _swapRewardToWftm(uint8 _poolId) internal {
+        address[] memory rewardToWftmPaths = poolRewardToWftmPaths[_poolId];
+        IERC20 rewardToken = IAceLab(aceLab).poolInfo(_poolId).RewardToken;
+        uint256 poolRewardTokenBal = rewardToken.balanceOf(address(this));
+        if (poolRewardTokenBal > 0 && address(rewardToken) != wftm) {
+            // Default to support empty or incomplete path array
+            if (rewardToWftmPaths.length < 2) {
+                rewardToWftmPaths = new address[](2);
+                rewardToWftmPaths[0] = address(rewardToken);
+                rewardToWftmPaths[1] = wftm;
+            }
+            IUniswapRouterETH(uniRouter)
+                .swapExactTokensForTokensSupportingFeeOnTransferTokens(
+                    poolRewardTokenBal,
+                    0,
+                    rewardToWftmPaths,
+                    address(this),
+                    block.timestamp.add(600)
+                );
+        }
+    }
+
+    /**
+     * @dev Swaps any pool reward token to wftm
+     */
+    function _setEstimatedYield(uint8 _poolId) internal {
+        IAceLab.PoolInfo memory poolInfo = IAceLab(aceLab).poolInfo(_poolId);
+        uint256 _from = block.timestamp;
+        uint256 _to = block.timestamp + 1 days;
+        uint256 multiplier;
+        _from = _from > poolInfo.startTime ? _from : poolInfo.startTime;
+        if (_from > poolInfo.endTime || _to < poolInfo.startTime) {
+            multiplier = 0;
+        }
+        if (_to > poolInfo.endTime) {
+            multiplier = poolInfo.endTime - _from;
+        }
+        multiplier = _to - _from;
+        uint256 totalTokens = multiplier * poolInfo.RewardPerSecond;
+
+        if (address(poolInfo.RewardToken) == wftm) {
+            uint256 wftmYield = (1 ether * totalTokens) /
+                poolInfo.xBooStakedAmount;
+            poolYield[_poolId] = wftmYield;
+        } else {
+            if (totalTokens == 0) {
+                poolYield[_poolId] = 0;
+            } else {
+                address[] memory path = new address[](2);
+                path[0] = address(poolInfo.RewardToken);
+                path[1] = wftm;
+                uint256 wftmTotalPoolYield = IUniswapRouterETH(uniRouter)
+                    .getAmountsOut(totalTokens, path)[1];
+                uint256 wftmYield = (1 ether * wftmTotalPoolYield) /
+                    poolInfo.xBooStakedAmount;
+                poolYield[_poolId] = wftmYield;
+            }
+        }
     }
 
     /**
@@ -323,6 +425,9 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      * It takes into account both the funds in hand, as the funds allocated in xBoo and the AceLab pools.
      */
     function balanceOf() public view override returns (uint256) {
+        console.log("balanceOfBoo(): ", balanceOfBoo());
+        console.log("balanceOfxBoo(): ", balanceOfxBoo());
+        console.log("balanceOfPool(): ", balanceOfPool());
         uint256 balance = balanceOfBoo().add(
             balanceOfxBoo().add(balanceOfPool())
         );
@@ -357,7 +462,12 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     function retireStrat() external {
         require(msg.sender == vault);
 
-        currentlyUsedPools.withdrawAll(poolxBooBalance, aceLab, uniRouter);
+        for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
+            uint8 poolId = currentlyUsedPools[index];
+            uint256 balance = poolxBooBalance[poolId];
+            IAceLab(aceLab).withdraw(poolId, balance);
+            _swapRewardToWftm(poolId);
+        }
 
         _compoundRewards();
 
@@ -373,7 +483,10 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      */
     function panic() public onlyOwner {
         pause();
-        currentlyUsedPools.emergencyWithdraw(aceLab);
+        for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
+            uint8 poolId = currentlyUsedPools[index];
+            IAceLab(aceLab).emergencyWithdraw(poolId);
+        }
         uint256 xBooBalance = IERC20(xBoo).balanceOf(address(this));
         IBooMirrorWorld(xBoo).leave(xBooBalance);
 
@@ -439,14 +552,26 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      * @dev Gives max allowance to all pool rewards for the {uniRouter}.
      */
     function _givePoolAllowances() internal {
-        currentlyUsedPools.givePoolAllowances(aceLab, uniRouter);
+        for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
+            IERC20 rewardToken = IAceLab(aceLab)
+                .poolInfo(currentlyUsedPools[index])
+                .RewardToken;
+            rewardToken.safeApprove(uniRouter, 0);
+            rewardToken.safeApprove(uniRouter, type(uint256).max);
+        }
     }
 
     /**
      * @dev Removes all allowance to all pool rewards for the {uniRouter}.
      */
     function _removePoolAllowances() internal {
-        currentlyUsedPools.removePoolAllowances(aceLab, uniRouter);
+        for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
+            uint8 poolId = currentlyUsedPools[index];
+            IAceLab(aceLab).poolInfo(poolId).RewardToken.safeApprove(
+                uniRouter,
+                0
+            );
+        }
     }
 
     /**
@@ -500,29 +625,41 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      * @dev Adds a pool from the {aceLab} contract to be actively used to yield.
      * _poolRewardToWftmPaths can be empty if the paths are standard rewardToken -> wftm
      */
-    function addUsedPool(uint8 _poolId, address[] memory _poolRewardToWftmPath)
+    function addUsedPool(uint8 _poolId, address[] memory _poolRewardToWftmPaths)
         external
         onlyOwner
     {
-        currentlyUsedPools.addUsedPool(
-            _poolId,
-            _poolRewardToWftmPath,
-            poolRewardToWftmPaths,
-            aceLab,
-            uniRouter
-        );
+        currentlyUsedPools.push(_poolId);
+        poolRewardToWftmPaths[_poolId] = _poolRewardToWftmPaths;
+        address poolRewardToken;
+        if (_poolRewardToWftmPaths.length > 0) {
+            poolRewardToken = _poolRewardToWftmPaths[0];
+        } else {
+            poolRewardToken = address(
+                IAceLab(aceLab).poolInfo(_poolId).RewardToken
+            );
+        }
+        if (poolRewardToken != wftm) {
+            IERC20(poolRewardToken).safeApprove(uniRouter, type(uint256).max);
+        }
     }
 
     /**
      * @dev Removes a pool that will no longer be used.
      */
     function removeUsedPool(uint8 _poolIndex) external onlyOwner {
-        totalPoolBalance = currentlyUsedPools.removeUsedPool(
-            _poolIndex,
-            totalPoolBalance,
-            aceLab,
-            uniRouter,
-            poolxBooBalance
-        );
+        uint8 poolId = currentlyUsedPools[_poolIndex];
+        if (currentPoolId == poolId) {
+            currentPoolId = WFTM_POOL_ID;
+        }
+        IAceLab(aceLab).poolInfo(poolId).RewardToken.safeApprove(uniRouter, 0);
+        uint256 balance = poolxBooBalance[poolId];
+        IAceLab(aceLab).withdraw(poolId, balance);
+        totalPoolBalance = totalPoolBalance.sub(balance);
+        poolxBooBalance[poolId] = 0;
+        uint256 lastPoolIndex = currentlyUsedPools.length - 1;
+        uint8 lastPoolId = currentlyUsedPools[lastPoolIndex];
+        currentlyUsedPools[_poolIndex] = lastPoolId;
+        currentlyUsedPools.pop();
     }
 }

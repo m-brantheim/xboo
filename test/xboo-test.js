@@ -19,13 +19,11 @@ describe("Vaults", function () {
   const i = 0;
   let Vault;
   let Strategy;
-  let Library;
   let Treasury;
   let Boo;
   let Acelab;
   let vault;
   let strategy;
-  let library;
   let treasury;
   let boo;
   let booAddress = "0x841FAD6EAe12c286d1Fd18d1d525DFfA75C7EFFE";
@@ -36,11 +34,6 @@ describe("Vaults", function () {
   let bigBooWhale;
   let selfAddress;
   let owner;
-  let addr1;
-  let addr2;
-  let addri;
-  let addr4;
-  let addrs;
 
   beforeEach(async function () {
     //reset network
@@ -85,14 +78,7 @@ describe("Vaults", function () {
     console.log("addresses");
 
     //get artifacts
-    Library = await ethers.getContractFactory("AceLabPoolManager");
-    library = await Library.deploy();
-    // Strategy = await ethers.getContractFactory("ReaperAutoCompoundXBoo");
-    Strategy = await ethers.getContractFactory("ReaperAutoCompoundXBoo", {
-      libraries: {
-        AceLabPoolManager: library.address,
-      },
-    });
+    Strategy = await ethers.getContractFactory("ReaperAutoCompoundXBoo");
     Vault = await ethers.getContractFactory("ReaperVaultv1_2");
     Treasury = await ethers.getContractFactory("ReaperTreasury");
     Boo = await ethers.getContractFactory("SpookyToken");
@@ -275,7 +261,7 @@ describe("Vaults", function () {
       expect(isSmallBalanceDifference).to.equal(true);
       expect(deductedAmount).to.equal(depositAmount);
     });
-    xit("should mint user their pool share", async function () {
+    it("should mint user their pool share", async function () {
       console.log("---------------------------------------------");
       const userBalance = await boo.balanceOf(selfAddress);
       console.log(userBalance.toString());
@@ -296,8 +282,11 @@ describe("Vaults", function () {
       console.log(ownerBalance.toString());
       await vault.deposit(ownerDepositAmount);
       console.log((await vault.balance()).toString());
-      const ownerBooBalance = await vault.balanceOf(ownerAddress);
-      console.log(ownerBooBalance.toString());
+      const ownerVaultBooBalance = await vault.balanceOf(ownerAddress);
+      console.log(ownerVaultBooBalance.toString());
+      await vault.withdraw(ownerVaultBooBalance);
+      const ownerBooBalance = await boo.balanceOf(ownerAddress);
+      console.log(`ownerBooBalance: ${ownerBooBalance}`);
       // expect(ownerBooBalance).to.equal(ownerDepositAmount);
       // expect(selfBooBalance).to.equal(selfDepositAmount);
     });
@@ -333,7 +322,7 @@ describe("Vaults", function () {
     xit("should be able to harvest", async function () {
       await strategy.connect(self).harvest();
     });
-    it("should provide yield", async function () {
+    xit("should provide yield", async function () {
       await strategy.connect(self).harvest();
       const depositAmount = ethers.utils.parseEther(".05");
       await vault.connect(self).deposit(depositAmount);
