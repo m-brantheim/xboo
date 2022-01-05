@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-import "./abstract/Ownable.sol";
-import "./abstract/Pausable.sol";
+import "./abstract/ReaperBaseStrategy.sol";
 import "./interfaces/IERC20.sol";
 import "./interfaces/IAceLab.sol";
 import "./interfaces/IBooMirrorWorld.sol";
@@ -16,9 +15,9 @@ pragma solidity 0.8.9;
  * @dev This is a strategy to stake Boo into xBoo, and then stake xBoo in different pools to collect more rewards
  * The strategy will compound the pool rewards into Boo which will be deposited into the strategy for more yield.
  */
-contract ReaperAutoCompoundXBoo is Ownable, Pausable {
+contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     using SafeERC20 for IERC20;
-    using Address for address;
+    // using Address for address;
     using SafeMath for uint256;
     using AceLabPoolManager for uint8[];
 
@@ -70,7 +69,6 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
     uint256 public securityFee = 10;
     uint256 public totalFee = 450;
     uint256 public constant MAX_FEE = 500;
-    uint256 public constant PERCENT_DIVISOR = 10000;
 
     /**
      * @dev Routes we take to swap tokens
@@ -109,7 +107,6 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
      * {TotalFeeUpdated} Event that is fired each time the total fee is updated.
      * {CallFeeUpdated} Event that is fired each time the call fee is updated.
      */
-    event StratHarvest(address indexed harvester);
     event TotalFeeUpdated(uint256 newFee);
     event CallFeeUpdated(uint256 newCallFee, uint256 newTreasuryFee);
 
@@ -193,13 +190,29 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
      * 3. It swaps the {wftm} token for {Boo} which is deposited into {xBoo}
      * 4. It distributes the xBoo using a yield optimization algorithm into various pools.
      */
-    function harvest() external whenNotPaused {
-        require(!Address.isContract(msg.sender));
+    function _harvestCore() internal override {
         _collectRewardsAndEstimateYield();
         _chargeFees();
         _compoundRewards();
         _rebalance();
-        emit StratHarvest(msg.sender);
+    }
+
+    /**
+     * @dev Returns the approx amount of profit from harvesting.
+     *      Profit is denominated in WFTM, and takes fees into account.
+     */
+    function estimateHarvest()
+        external
+        view
+        override
+        returns (uint256 profit, uint256 callFeeToUser)
+    {
+        profit = currentlyUsedPools.estimateHarvest(aceLab, uniRouter);
+
+        // // take out fees from profit
+        uint256 wftmFee = profit.mul(totalFee).div(PERCENT_DIVISOR);
+        callFeeToUser = wftmFee.mul(callFee).div(PERCENT_DIVISOR);
+        profit = profit.sub(wftmFee);
     }
 
     /**
@@ -309,7 +322,7 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
      * @dev Function to calculate the total underlaying {boo} held by the strat.
      * It takes into account both the funds in hand, as the funds allocated in xBoo and the AceLab pools.
      */
-    function balanceOf() public view returns (uint256) {
+    function balanceOf() public view override returns (uint256) {
         uint256 balance = balanceOfBoo().add(
             balanceOfxBoo().add(balanceOfPool())
         );

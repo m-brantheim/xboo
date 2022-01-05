@@ -183,6 +183,29 @@ library AceLabPoolManager {
         }
     }
 
+    function estimateHarvest(
+        uint8[] storage pools,
+        address aceLab,
+        address uniRouter
+    ) external view returns (uint256) {
+        uint256 profit = 0;
+        for (uint256 index = 0; index < pools.length; index++) {
+            uint8 poolId = pools[index];
+            uint256 pendingReward = IAceLab(aceLab).pendingReward(
+                poolId,
+                address(this)
+            );
+            address[] memory path = new address[](2);
+            path[0] = address(IAceLab(aceLab).poolInfo(poolId).RewardToken);
+            path[1] = wftm;
+
+            uint256[] memory amountOutMins = IUniswapRouterETH(uniRouter)
+                .getAmountsOut(pendingReward, path);
+            profit = profit.add(amountOutMins[1]);
+        }
+        return profit;
+    }
+
     /**
      * @dev Swaps any pool reward token to wftm
      */
