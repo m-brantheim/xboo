@@ -271,11 +271,17 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
      */
     function _setEstimatedYield(uint8 _poolId) internal {
         IAceLab.PoolInfo memory poolInfo = IAceLab(aceLab).poolInfo(_poolId);
-        uint256 multiplier = _getMultiplier(
-            block.timestamp,
-            block.timestamp + 1 days,
-            poolInfo
-        );
+        uint256 _from = block.timestamp;
+        uint256 _to = block.timestamp + 1 days;
+        uint256 multiplier;
+        _from = _from > poolInfo.startTime ? _from : poolInfo.startTime;
+        if (_from > poolInfo.endTime || _to < poolInfo.startTime) {
+            multiplier = 0;
+        }
+        if (_to > poolInfo.endTime) {
+            multiplier = poolInfo.endTime - _from;
+        }
+        multiplier = _to - _from;
         uint256 totalTokens = multiplier * poolInfo.RewardPerSecond;
 
         if (address(poolInfo.RewardToken) == wftm) {
@@ -384,25 +390,6 @@ contract ReaperAutoCompoundXBoo is Ownable, Pausable {
             xBooBalance = IERC20(xBoo).balanceOf(address(this));
             currentPoolId = bestYieldPoolId;
         }
-    }
-
-    /**
-     * @dev Returns the amount of seconds during a given timespan and pool where
-     * the pool is issuing rewards. Taken from the AceLab contract.
-     */
-    function _getMultiplier(
-        uint256 _from,
-        uint256 _to,
-        IAceLab.PoolInfo memory pool
-    ) internal pure returns (uint256) {
-        _from = _from > pool.startTime ? _from : pool.startTime;
-        if (_from > pool.endTime || _to < pool.startTime) {
-            return 0;
-        }
-        if (_to > pool.endTime) {
-            return pool.endTime - _from;
-        }
-        return _to - _from;
     }
 
     /**
