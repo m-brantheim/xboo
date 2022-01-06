@@ -162,7 +162,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      * The available {boo} minus fees is returned to the vault.
      */
     function withdraw(uint256 _amount) external {
-        require(msg.sender == vault);
+        require(msg.sender == vault, "!vault");
 
         uint256 booBalance = IERC20(boo).balanceOf(address(this));
 
@@ -236,13 +236,23 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
                 poolId,
                 address(this)
             );
-            address[] memory path = new address[](2);
-            path[0] = address(IAceLab(aceLab).poolInfo(poolId).RewardToken);
-            path[1] = wftm;
+            if (pendingReward == 0) {
+                continue;
+            }
+            address rewardToken = address(
+                IAceLab(aceLab).poolInfo(poolId).RewardToken
+            );
+            if (rewardToken == wftm) {
+                profit = profit.add(pendingReward);
+            } else {
+                address[] memory path = new address[](2);
+                path[0] = rewardToken;
+                path[1] = wftm;
 
-            uint256[] memory amountOutMins = IUniswapRouterETH(uniRouter)
-                .getAmountsOut(pendingReward, path);
-            profit = profit.add(amountOutMins[1]);
+                uint256[] memory amountOutMins = IUniswapRouterETH(uniRouter)
+                    .getAmountsOut(pendingReward, path);
+                profit = profit.add(amountOutMins[1]);
+            }
         }
 
         // // take out fees from profit
@@ -379,7 +389,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         uint256 xBooBalance = IERC20(xBoo).balanceOf(address(this));
         while (xBooBalance > 0) {
             uint256 bestYield = 0;
-            uint8 bestYieldPoolId = WFTM_POOL_ID;
+            uint8 bestYieldPoolId = currentlyUsedPools[0];
             uint256 bestYieldIndex = 0;
             for (
                 uint256 index = 0;
@@ -425,9 +435,6 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      * It takes into account both the funds in hand, as the funds allocated in xBoo and the AceLab pools.
      */
     function balanceOf() public view override returns (uint256) {
-        console.log("balanceOfBoo(): ", balanceOfBoo());
-        console.log("balanceOfxBoo(): ", balanceOfxBoo());
-        console.log("balanceOfPool(): ", balanceOfPool());
         uint256 balance = balanceOfBoo().add(
             balanceOfxBoo().add(balanceOfPool())
         );
@@ -460,12 +467,13 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      * vault, ready to be migrated to the new strat.
      */
     function retireStrat() external {
-        require(msg.sender == vault);
-
+        require(msg.sender == vault, "!vault");
         for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
             uint8 poolId = currentlyUsedPools[index];
             uint256 balance = poolxBooBalance[poolId];
             IAceLab(aceLab).withdraw(poolId, balance);
+            totalPoolBalance = totalPoolBalance.sub(balance);
+            poolxBooBalance[poolId] = 0;
             _swapRewardToWftm(poolId);
         }
 
@@ -482,7 +490,6 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      * @dev Pauses deposits. Withdraws all funds from the AceLab contract, leaving rewards behind.
      */
     function panic() public onlyOwner {
-        pause();
         for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
             uint8 poolId = currentlyUsedPools[index];
             IAceLab(aceLab).emergencyWithdraw(poolId);
@@ -492,6 +499,8 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
 
         uint256 booBalance = IERC20(boo).balanceOf(address(this));
         IERC20(boo).transfer(vault, booBalance);
+
+        pause();
     }
 
     /**
@@ -582,7 +591,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         onlyOwner
         returns (bool)
     {
-        require(_totalFee <= MAX_FEE);
+        require(_totalFee <= MAX_FEE, "Fee Too High");
         totalFee = _totalFee;
         emit TotalFeeUpdated(totalFee);
         return true;
@@ -617,23 +626,30 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         external
         onlyOwner
     {
-        require(_maxPoolDilutionFactor > 0);
+        require(
+            _maxPoolDilutionFactor > 0,
+            "Must be a positive pool dilution factor"
+        );
         maxPoolDilutionFactor = _maxPoolDilutionFactor;
     }
 
     /**
      * @dev Adds a pool from the {aceLab} contract to be actively used to yield.
-     * _poolRewardToWftmPaths can be empty if the paths are standard rewardToken -> wftm
+     * _poolRewardToWftmPath can be empty if the paths are standard rewardToken -> wftm
      */
-    function addUsedPool(uint8 _poolId, address[] memory _poolRewardToWftmPaths)
+    function addUsedPool(uint8 _poolId, address[] memory _poolRewardToWftmPath)
         external
         onlyOwner
     {
+        require(
+            _poolRewardToWftmPath.length >= 2,
+            "Must have at least 2 addresses in reward path"
+        );
         currentlyUsedPools.push(_poolId);
-        poolRewardToWftmPaths[_poolId] = _poolRewardToWftmPaths;
+        poolRewardToWftmPaths[_poolId] = _poolRewardToWftmPath;
         address poolRewardToken;
-        if (_poolRewardToWftmPaths.length > 0) {
-            poolRewardToken = _poolRewardToWftmPaths[0];
+        if (_poolRewardToWftmPath.length > 0) {
+            poolRewardToken = _poolRewardToWftmPath[0];
         } else {
             poolRewardToken = address(
                 IAceLab(aceLab).poolInfo(_poolId).RewardToken
@@ -661,5 +677,9 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         uint8 lastPoolId = currentlyUsedPools[lastPoolIndex];
         currentlyUsedPools[_poolIndex] = lastPoolId;
         currentlyUsedPools.pop();
+
+        if (poolId == WFTM_POOL_ID) {
+            currentPoolId = currentlyUsedPools[0];
+        }
     }
 }
