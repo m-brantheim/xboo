@@ -50,6 +50,12 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     address public vault;
 
     /**
+     * @dev Reaper Roles:
+     * {strategist} - address of the strategist responsible for keeping strategy variables updated
+     */
+    address public strategist;
+
+    /**
      * @dev Distribution of fees earned. This allocations relative to the % implemented on
      * Current implementation separates 5% for fees. Can be changed through the constructor
      * Inputs in constructor should be ratios between the Fee and Max Fee, divisble into percents by 10000
@@ -105,12 +111,13 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     mapping(uint8 => uint256) public poolxBooBalance;
 
     /**
-     * {StratHarvest} Event that is fired each time someone harvests the strat.
      * {TotalFeeUpdated} Event that is fired each time the total fee is updated.
      * {CallFeeUpdated} Event that is fired each time the call fee is updated.
+     * {UpdatedStrategist} Event that is fired each time the strategist role is updated.
      */
     event TotalFeeUpdated(uint256 newFee);
     event CallFeeUpdated(uint256 newCallFee, uint256 newTreasuryFee);
+    event UpdatedStrategist(address newStrategist);
 
     /**
      * @dev Initializes the strategy. Sets parameters, saves routes, and gives allowances.
@@ -624,8 +631,8 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      */
     function updateMaxPoolDilutionFactor(uint8 _maxPoolDilutionFactor)
         external
-        onlyOwner
     {
+        _onlyAuthorized();
         require(
             _maxPoolDilutionFactor > 0,
             "Must be a positive pool dilution factor"
@@ -639,8 +646,8 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      */
     function addUsedPool(uint8 _poolId, address[] memory _poolRewardToWftmPath)
         external
-        onlyOwner
     {
+        _onlyAuthorized();
         require(
             _poolRewardToWftmPath.length >= 2,
             "Must have at least 2 addresses in reward path"
@@ -663,7 +670,8 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     /**
      * @dev Removes a pool that will no longer be used.
      */
-    function removeUsedPool(uint8 _poolIndex) external onlyOwner {
+    function removeUsedPool(uint8 _poolIndex) external {
+        _onlyAuthorized();
         uint8 poolId = currentlyUsedPools[_poolIndex];
         if (currentPoolId == poolId) {
             currentPoolId = WFTM_POOL_ID;
@@ -681,5 +689,26 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         if (poolId == WFTM_POOL_ID) {
             currentPoolId = currentlyUsedPools[0];
         }
+    }
+
+    /**
+     * @dev Updates the current strategist.
+     *  This may only be called by owner or the existing strategist.
+     */
+    function setStrategist(address _strategist) external {
+        _onlyAuthorized();
+        require(_strategist != address(0), "Can't set strategist to 0 address");
+        strategist = _strategist;
+        emit UpdatedStrategist(_strategist);
+    }
+
+    /**
+     * @dev Only allow access to strategist or owner
+     */
+    function _onlyAuthorized() internal view {
+        require(
+            msg.sender == strategist || msg.sender == owner(),
+            "Not authorized"
+        );
     }
 }
