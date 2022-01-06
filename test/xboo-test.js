@@ -98,7 +98,7 @@ describe("Vaults", function () {
       "rfXBOO",
       432000,
       0,
-      ethers.utils.parseEther("10000")
+      ethers.utils.parseEther("999999")
     );
     console.log("vault");
 
@@ -211,7 +211,7 @@ describe("Vaults", function () {
     console.log("approvals6");
   });
 
-  describe("Deploying the vault and strategy", function () {
+  xdescribe("Deploying the vault and strategy", function () {
     xit("should initiate vault with a 0 balance", async function () {
       console.log(1);
       const totalBalance = await vault.balance();
@@ -227,7 +227,7 @@ describe("Vaults", function () {
       expect(pricePerFullShare).to.equal(ethers.utils.parseEther("1"));
     });
   });
-  describe("Vault Tests", function () {
+  xdescribe("Vault Tests", function () {
     xit("should allow deposits and account for them correctly", async function () {
       const userBalance = await boo.balanceOf(selfAddress);
       console.log(1);
@@ -360,5 +360,34 @@ describe("Vaults", function () {
       console.log(`hasYield: ${hasYield}`);
       expect(hasYield).to.equal(true);
     });
+  });
+  describe("Strategy", function () {
+    it("should be able to remove a pool", async function () {
+      await strategy.connect(self).harvest();
+      const bigWhaleDepositAmount = ethers.utils.parseEther("327171");
+      await vault.connect(bigBooWhale).deposit(bigWhaleDepositAmount);
+      await strategy.connect(self).harvest();
+
+      const treebPoolId = 9;
+      const treebIndex = 3;
+      const treebPoolBalance = await strategy.poolxBooBalance(treebPoolId);
+      console.log(`treebPoolBalance: ${treebPoolBalance}`);
+
+      const tx = await strategy.removeUsedPool(treebIndex);
+      await tx.wait();
+
+      const newTreebPoolBalance = await strategy.poolxBooBalance(treebPoolId);
+      console.log(`newTreebPoolBalance: ${newTreebPoolBalance}`);
+
+      // Make sure harvest can run without error after removing
+      await strategy.connect(self).harvest();
+
+      expect(newTreebPoolBalance).to.equal(0);
+      //const depositBalance = await this.state.test.etherBalanceOf(this.state.account).call()
+    });
+    xit("should be able to pause and unpause", async function () {});
+    xit("should be able to panic", async function () {});
+    xit("should be able to retire strategy", async function () {});
+    xit("should be able to estimate harvest", async function () {});
   });
 });
