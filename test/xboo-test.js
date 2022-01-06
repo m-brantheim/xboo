@@ -79,7 +79,7 @@ describe("Vaults", function () {
 
     //get artifacts
     Strategy = await ethers.getContractFactory("ReaperAutoCompoundXBoo");
-    Vault = await ethers.getContractFactory("ReaperVaultv1_2");
+    Vault = await ethers.getContractFactory("ReaperVaultv1_3");
     Treasury = await ethers.getContractFactory("ReaperTreasury");
     Boo = await ethers.getContractFactory("SpookyToken");
     Acelab = await ethers.getContractFactory("AceLab");
@@ -97,7 +97,8 @@ describe("Vaults", function () {
       "XBOO Single Stake Vault",
       "rfXBOO",
       432000,
-      0
+      0,
+      ethers.utils.parseEther("10000")
     );
     console.log("vault");
 
@@ -287,6 +288,12 @@ describe("Vaults", function () {
       await vault.withdraw(ownerVaultBooBalance);
       const ownerBooBalance = await boo.balanceOf(ownerAddress);
       console.log(`ownerBooBalance: ${ownerBooBalance}`);
+      const ownerVaultBooBalanceAfterWithdraw = await vault.balanceOf(
+        ownerAddress
+      );
+      console.log(
+        `ownerVaultBooBalanceAfterWithdraw: ${ownerVaultBooBalanceAfterWithdraw}`
+      );
       // expect(ownerBooBalance).to.equal(ownerDepositAmount);
       // expect(selfBooBalance).to.equal(selfDepositAmount);
     });
