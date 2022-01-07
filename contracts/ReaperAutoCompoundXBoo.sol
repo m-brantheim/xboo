@@ -20,7 +20,6 @@ pragma solidity 0.8.9;
  */
 contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     using SafeERC20 for IERC20;
-    using Address for address;
     using SafeMath for uint256;
 
     /**
@@ -40,20 +39,6 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      */
     address public uniRouter;
     address public aceLab;
-
-    /**
-     * @dev Reaper Contracts:
-     * {treasury} - Address of the Reaper treasury
-     * {vault} - Address of the vault that controls the strategy's funds.
-     */
-    address public treasury;
-    address public vault;
-
-    /**
-     * @dev Reaper Roles:
-     * {strategist} - address of the strategist responsible for keeping strategy variables updated
-     */
-    address public strategist;
 
     /**
      * @dev Routes we take to swap tokens
@@ -102,14 +87,13 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         address _rewardToken,
         address _xBoo,
         address _vault,
-        address _treasury
-    ) {
+        address _treasury,
+        address _strategist
+    ) ReaperBaseStrategy(_vault, _treasury, _strategist) {
         uniRouter = _uniRouter;
         aceLab = _aceLab;
         boo = _rewardToken;
         xBoo = _xBoo;
-        vault = _vault;
-        treasury = _treasury;
         wftmToBooRoute = [wftm, boo];
         currentPoolId = WFTM_POOL_ID;
 
@@ -333,12 +317,19 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
             uint256 wftmFee = wftmBalance.mul(totalFee).div(PERCENT_DIVISOR);
 
             uint256 callFeeToUser = wftmFee.mul(callFee).div(PERCENT_DIVISOR);
-            IERC20(wftm).safeTransfer(msg.sender, callFeeToUser);
 
             uint256 treasuryFeeToVault = wftmFee.mul(treasuryFee).div(
                 PERCENT_DIVISOR
             );
+
+            uint256 feeToStrategist = treasuryFeeToVault.mul(strategistFee).div(
+                PERCENT_DIVISOR
+            );
+            treasuryFeeToVault = treasuryFeeToVault.sub(feeToStrategist);
+
+            IERC20(wftm).safeTransfer(msg.sender, callFeeToUser);
             IERC20(wftm).safeTransfer(treasury, treasuryFeeToVault);
+            IERC20(wftm).safeTransfer(strategist, feeToStrategist);
         }
     }
 
@@ -564,24 +555,12 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     }
 
     /**
-     * @dev updates the treasury
-     */
-    function updateTreasury(address newTreasury)
-        external
-        onlyOwner
-        returns (bool)
-    {
-        treasury = newTreasury;
-        return true;
-    }
-
-    /**
      * @dev updates the {maxPoolDilutionFactor}
      */
     function updateMaxPoolDilutionFactor(uint8 _maxPoolDilutionFactor)
         external
     {
-        _onlyAuthorized();
+        _onlyStrategistOrOwner();
         require(
             _maxPoolDilutionFactor > 0,
             "Must be a positive pool dilution factor"
@@ -596,7 +575,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     function addUsedPool(uint8 _poolId, address[] memory _poolRewardToWftmPath)
         external
     {
-        _onlyAuthorized();
+        _onlyStrategistOrOwner();
         require(
             _poolRewardToWftmPath.length >= 2,
             "Must have at least 2 addresses in reward path"
@@ -620,7 +599,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      * @dev Removes a pool that will no longer be used.
      */
     function removeUsedPool(uint8 _poolIndex) external {
-        _onlyAuthorized();
+        _onlyStrategistOrOwner();
         uint8 poolId = currentlyUsedPools[_poolIndex];
         if (currentPoolId == poolId) {
             currentPoolId = WFTM_POOL_ID;
@@ -638,26 +617,5 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         if (poolId == WFTM_POOL_ID) {
             currentPoolId = currentlyUsedPools[0];
         }
-    }
-
-    /**
-     * @dev Updates the current strategist.
-     *  This may only be called by owner or the existing strategist.
-     */
-    function setStrategist(address _strategist) external {
-        _onlyAuthorized();
-        require(_strategist != address(0), "Can't set strategist to 0 address");
-        strategist = _strategist;
-        emit UpdatedStrategist(_strategist);
-    }
-
-    /**
-     * @dev Only allow access to strategist or owner
-     */
-    function _onlyAuthorized() internal view {
-        require(
-            msg.sender == strategist || msg.sender == owner(),
-            "Not authorized"
-        );
     }
 }
