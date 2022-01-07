@@ -136,13 +136,17 @@ describe("Vaults", function () {
     const USDC = "0x04068da6c83afcfa0e13ba15a6696662335d5b75";
     const DAI = "0x8d11ec38a3eb5e956b052f67da8bdc9bef8abf3e";
 
+    // Just use any address for testing
+    const strategist = booHolder;
+
     strategy = await Strategy.deploy(
       uniRouter,
       aceLabAddress,
       booAddress,
       xBooAddress,
       vault.address,
-      treasury.address
+      treasury.address,
+      strategist
     );
     console.log("strategy");
 
@@ -227,7 +231,7 @@ describe("Vaults", function () {
       expect(pricePerFullShare).to.equal(ethers.utils.parseEther("1"));
     });
   });
-  xdescribe("Vault Tests", function () {
+  describe("Vault Tests", function () {
     xit("should allow deposits and account for them correctly", async function () {
       const userBalance = await boo.balanceOf(selfAddress);
       console.log(1);
@@ -262,7 +266,7 @@ describe("Vaults", function () {
       expect(isSmallBalanceDifference).to.equal(true);
       expect(deductedAmount).to.equal(depositAmount);
     });
-    it("should mint user their pool share", async function () {
+    xit("should mint user their pool share", async function () {
       console.log("---------------------------------------------");
       const userBalance = await boo.balanceOf(selfAddress);
       console.log(userBalance.toString());
@@ -329,7 +333,7 @@ describe("Vaults", function () {
     xit("should be able to harvest", async function () {
       await strategy.connect(self).harvest();
     });
-    xit("should provide yield", async function () {
+    it("should provide yield", async function () {
       await strategy.connect(self).harvest();
       const depositAmount = ethers.utils.parseEther(".05");
       await vault.connect(self).deposit(depositAmount);
@@ -425,7 +429,7 @@ describe("Vaults", function () {
       // expect(newVaultBalance).to.equal(vaultBalance);
       expect(newStrategyBalance).to.equal(0);
     });
-    it("should be able to estimate harvest", async function () {
+    xit("should be able to estimate harvest", async function () {
       const bigWhaleDepositAmount = ethers.utils.parseEther("327171");
       await vault.connect(bigBooWhale).deposit(bigWhaleDepositAmount);
       await strategy.harvest();
