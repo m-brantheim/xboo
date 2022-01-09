@@ -6,6 +6,12 @@ import "./Ownable.sol";
 import "./Pausable.sol";
 import "../libraries/SafeMath.sol";
 
+// remove Ownable, upgrade to AccessControlEnumerable
+//
+// honestly just copy over the entire ReaperBaseStrategy from the Geist staking crypt
+// cuz there's a few more little changes like a new STRATEGIST_MULTISIG role and whatnot
+//
+// not reviewing this contract since you'll just update it to be the latest
 abstract contract ReaperBaseStrategy is Pausable, Ownable {
     using SafeMath for uint256;
 
