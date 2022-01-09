@@ -546,6 +546,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      * in addition to allowance to all pool rewards for the {uniRouter}.
      */
     function _removeAllowances() internal {
+        // might want to update all these comments to say "Remove"
         // Give xBOO permission to use Boo
         IERC20(boo).safeApprove(xBoo, 0);
         // Give xBoo contract permission to stake xBoo
@@ -574,6 +575,12 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     function _removePoolAllowances() internal {
         for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
             uint8 poolId = currentlyUsedPools[index];
+            // do you actually need to do a cross-contract call here to get the reward token?
+            // can't you just get the first token from the path mapping in here?
+            // same for givePoolAllowances above..
+
+            // for what it's worth i think WFTM's rewardToWftmPath should be [wftm]
+            // for this purpose
             IAceLab(aceLab).poolInfo(poolId).RewardToken.safeApprove(
                 uniRouter,
                 0
@@ -589,8 +596,8 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     {
         _onlyStrategistOrOwner();
         require(
-            _maxPoolDilutionFactor > 0,
-            "Must be a positive pool dilution factor"
+            _maxPoolDilutionFactor > 0, // remember != 0 is the same
+            "Must be a positive pool dilution factor" // can honestly just say "update: !0"
         );
         maxPoolDilutionFactor = _maxPoolDilutionFactor;
     }
@@ -610,6 +617,8 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         currentlyUsedPools.push(_poolId);
         poolRewardToWftmPaths[_poolId] = _poolRewardToWftmPath;
         address poolRewardToken;
+        // uhh.. the require above ensure that length >= 2 so this would
+        // always be true
         if (_poolRewardToWftmPath.length > 0) {
             poolRewardToken = _poolRewardToWftmPath[0];
         } else {
@@ -617,6 +626,12 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
                 IAceLab(aceLab).poolInfo(_poolId).RewardToken
             );
         }
+        // what about the case where you remove the wftm pool but wish to re-add it later?
+        // i think you should just remove the require statement above
+        // and trust that owner or strategist will pass in the right path depending on the token
+        // for WFTM pool I think path should just be [wftm] as that will help you in other places like
+        // giving/removing allowances
+        // note to self: make sure wftm is handled separately when claiming rewards
         if (poolRewardToken != wftm) {
             IERC20(poolRewardToken).safeApprove(uniRouter, type(uint256).max);
         }
@@ -629,8 +644,12 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         _onlyStrategistOrOwner();
         uint8 poolId = currentlyUsedPools[_poolIndex];
         if (currentPoolId == poolId) {
-            // so we would never remove the WFTM pool?
-            // what if there's actually 5 pools better than the WFTM pool?
+            // this check feels sort of useless in the case where
+            // currentPoolId == poolId == WFTM_POOL_ID
+            // and also makes the logic here a bit hard to follow
+            //
+            // I would just do all your deletion work and then 
+            // re-assign currentPoolId if necessary at the end of this function
             currentPoolId = WFTM_POOL_ID;
         }
         IAceLab(aceLab).poolInfo(poolId).RewardToken.safeApprove(uniRouter, 0);
