@@ -228,6 +228,11 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
             if (pendingReward == 0) {
                 continue;
             }
+
+            // same thing re: using the mapping here for the paths
+            // you just get the path and you know the first element
+            // is the reward token. that way you don't even need to
+            // create memory arrays in the else
             address rewardToken = address(
                 IAceLab(aceLab).poolInfo(poolId).RewardToken
             );
@@ -256,17 +261,17 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      */
     function _collectRewardsAndEstimateYield() internal {
         uint256 nrOfUsedPools = currentlyUsedPools.length;
-        // honestly wondering if OpenZeppelin's EnumerableSet would be a better
-        // choice for currentlyUsedPools compared to an array
         for (uint256 index = 0; index < nrOfUsedPools; index++) {
             uint8 poolId = currentlyUsedPools[index];
             uint256 currentPoolxBooBalance = poolxBooBalance[poolId];
             IAceLab(aceLab).withdraw(poolId, currentPoolxBooBalance);
-            totalPoolBalance = totalPoolBalance.sub(currentPoolxBooBalance);
+            totalPoolBalance = totalPoolBalance.sub(currentPoolxBooBalance); // CEI :)
             poolxBooBalance[poolId] = 0;
             _swapRewardToWftm(poolId);
             _setEstimatedYield(poolId);
-            hasAllocatedToPool[poolId] = false;
+            hasAllocatedToPool[poolId] = false; // I'd move this up too with the rest of the effects
+            // update all your state variables together first (totalPoolBalance, poolXBooBalance, hasAllocatedToPool)
+            // then do all your interactions (withdraw, swap, estimate yield)
         }
     }
 
@@ -275,10 +280,20 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      */
     function _swapRewardToWftm(uint8 _poolId) internal {
         address[] memory rewardToWftmPaths = poolRewardToWftmPaths[_poolId];
+        // why fetch this token externally it should just be rewardToWftmPaths[0]
         IERC20 rewardToken = IAceLab(aceLab).poolInfo(_poolId).RewardToken;
         uint256 poolRewardTokenBal = rewardToken.balanceOf(address(this));
         if (poolRewardTokenBal > 0 && address(rewardToken) != wftm) {
             // Default to support empty or incomplete path array
+            
+            // not really understanding the use case here..
+            //
+            // if you make it so that rewardToWftmPaths for wftm is just [WFTM] (I mention
+            // this below as well in addUsedPool/removeUsedPool)
+            // and everything else has path like [Token, WFTM] or [Token, Intermediary, WFTM]
+            // do you need any special handling here?
+            //
+            // p.s. i wish there was batch swap!!
             if (rewardToWftmPaths.length < 2) {
                 rewardToWftmPaths = new address[](2);
                 rewardToWftmPaths[0] = address(rewardToken);
@@ -298,11 +313,29 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     /**
      * @dev Swaps any pool reward token to wftm
      */
+    // ^ fix this comment to describe what this function does
     function _setEstimatedYield(uint8 _poolId) internal {
         IAceLab.PoolInfo memory poolInfo = IAceLab(aceLab).poolInfo(_poolId);
         uint256 _from = block.timestamp;
         uint256 _to = block.timestamp + 1 days;
+        // what are the pros and cons of choosing a 1 day projected yield as opposed to
+        // a shorter/longer timeframe?
+        // actually.. if you want to be super-accurate you can use 
+        // _from = block.timestamp - lastHarvestTimeStamp
+        // _to = block.timestamp
+        // this would give you the estimated yield between the last harvest and now
+        //
+        // that way you don't even have to use the multiplier to get the projected number
+        // you can literally just use the actual number of rewards that we just picked up
+        // just remember to change the order of _setEstimatedYield and _swapRewardToFTM
+        // if you do decide to go down that path
+        //
+        // to be honest this is pretty much what the harvest logging is doing in base strategy
+        // to calculate the APR for a particular harvest.. you just have multiple APRs to deal with
+        // over here
         uint256 multiplier;
+        // recommend making a private function to getMultipler and leave a comment
+        // saying that it's copied from AceLab
         _from = _from > poolInfo.startTime ? _from : poolInfo.startTime;
         if (_from > poolInfo.endTime || _to < poolInfo.startTime) {
             multiplier = 0;
@@ -318,9 +351,10 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
                 poolInfo.xBooStakedAmount;
             poolYield[_poolId] = wftmYield;
         } else {
-            if (totalTokens == 0) {
+            if (totalTokens == 0) { // should move this check out before the first "if", you can just return from within
                 poolYield[_poolId] = 0;
             } else {
+                // why not use the paths arrays from the mapping you already have!! :)
                 address[] memory path = new address[](2);
                 path[0] = address(poolInfo.RewardToken);
                 path[1] = wftm;
@@ -389,15 +423,20 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
             uint256 bestYield = 0;
             uint8 bestYieldPoolId = currentlyUsedPools[0];
             uint256 bestYieldIndex = 0;
+            // probably worth making an internal function 
+            // like _getNextBestPool that returns a tuple
+            // so you can just do
+            // (uint256 bestYield, uint256 ...) = _getNextBestPool()
             for (
                 uint256 index = 0;
                 index < currentlyUsedPools.length;
                 index++
             ) {
                 uint8 poolId = currentlyUsedPools[index];
-                if (hasAllocatedToPool[poolId] == false) {
+                // if (hasAllocatedToPool[poolId]) continue; -- that way you just skip over the rest and don't need to indent the rest
+                if (hasAllocatedToPool[poolId] == false) { // if (!hasAllocatedToPool[poolId]) -- if you decide to stick with how it is
                     uint256 currentPoolYield = poolYield[poolId];
-                    if (currentPoolYield >= bestYield) {
+                    if (currentPoolYield >= bestYield) { // can probably make this strictly greater than?
                         bestYield = currentPoolYield;
                         bestYieldPoolId = poolId;
                         bestYieldIndex = index;
@@ -409,9 +448,14 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
                 bestYieldPoolId
             );
             bool isNotWFTM = address(poolInfo.RewardToken) != wftm;
+            // wait so if WFTM pool is the next best pool, we just deposit everything that remains in it?
+            // why not put in only a chunk like the rest?
             if (
                 isNotWFTM &&
                 poolDepositAmount >
+                // I see what maxPoolDilutionFactor means now.. it's not the number of pools,
+                // but rather the max % we should be of any pool. so 5 means we won't become
+                // more than 20% of any pool.. is that correct?
                 (poolInfo.xBooStakedAmount / maxPoolDilutionFactor)
             ) {
                 poolDepositAmount =
@@ -419,12 +463,14 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
                     maxPoolDilutionFactor;
             }
             IAceLab(aceLab).deposit(bestYieldPoolId, poolDepositAmount);
-            totalPoolBalance = totalPoolBalance.add(poolDepositAmount);
+            totalPoolBalance = totalPoolBalance.add(poolDepositAmount); // CEI :)
             poolxBooBalance[bestYieldPoolId] = poolxBooBalance[bestYieldPoolId]
                 .add(poolDepositAmount);
             hasAllocatedToPool[bestYieldPoolId] = true;
             xBooBalance = IERC20(xBoo).balanceOf(address(this));
             currentPoolId = bestYieldPoolId;
+            // if this loop runs a few times, coming out of it currentPoolId will be the worst
+            // yielding pool (out of all our participating pools).. is that what you want?
         }
     }
 
@@ -435,6 +481,8 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     function balanceOf() public view override returns (uint256) {
         uint256 balance = balanceOfBoo().add(
             balanceOfxBoo().add(balanceOfPool())
+            // just to double check:
+            // staked xboo balance does not include xboo in pools (AceLab)?
         );
         return balance;
     }
@@ -457,6 +505,9 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      * @dev It calculates how much {boo} the strategy has allocated in the AceLab pools
      */
     function balanceOfPool() public view returns (uint256) {
+        // wait.. isn't totalPoolBalance the total for all the xboos allocated
+        // to all the pools?
+        // shouldn't this be BooForXBoo?
         return IBooMirrorWorld(xBoo).xBOOForBOO(totalPoolBalance);
     }
 
@@ -470,13 +521,18 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
             uint8 poolId = currentlyUsedPools[index];
             uint256 balance = poolxBooBalance[poolId];
             IAceLab(aceLab).withdraw(poolId, balance);
-            totalPoolBalance = totalPoolBalance.sub(balance);
+            totalPoolBalance = totalPoolBalance.sub(balance); // can apply CEI here as well
             poolxBooBalance[poolId] = 0;
             _swapRewardToWftm(poolId);
         }
 
         _compoundRewards();
 
+        // compoundRewards deposits all the boo into mirror world and forces
+        // you to withdraw here. I would just break up compoundRewards into two functions
+        // 1. swapFtmToBoo 2. enterXBoo or something
+        // that way you can call them sequentially in harvestCore but only call
+        // #1 here
         uint256 xBooBalance = IERC20(xBoo).balanceOf(address(this));
         IBooMirrorWorld(xBoo).leave(xBooBalance);
 
@@ -492,12 +548,20 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
             uint8 poolId = currentlyUsedPools[index];
             IAceLab(aceLab).emergencyWithdraw(poolId);
         }
+        // seeing that you're casting xBoo as multiple types 
+        // also makes me want to double down on my suggestion of just
+        // storing it as IBooMirrorWorld type (what I mentioned near the
+        // top of the contract)
+        //
+        // I see that IBooMirrorWorld is IERC20 so you should just get
+        // all the functions of IERC20 without any additional casts then
         uint256 xBooBalance = IERC20(xBoo).balanceOf(address(this));
         IBooMirrorWorld(xBoo).leave(xBooBalance);
 
         uint256 booBalance = IERC20(boo).balanceOf(address(this));
         IERC20(boo).transfer(vault, booBalance);
 
+        // checks and effects first! I'd pause() at the start of this function
         pause();
     }
 
