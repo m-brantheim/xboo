@@ -103,7 +103,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
             address(this)
         );
 
-        if (stakingTokenBalance > 0) {
+        if (stakingTokenBalance != 0) {
             IBooMirrorWorld(xToken).enter(stakingTokenBalance);
             uint256 xTokenBalance = IERC20(xToken).balanceOf(address(this));
             IAceLab(aceLab).deposit(currentPoolId, xTokenBalance);
@@ -133,7 +133,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
             ) {
                 uint256 poolId = currentlyUsedPools[index];
                 uint256 currentPoolxTokenBalance = poolxTokenBalance[poolId];
-                if (currentPoolxTokenBalance > 0) {
+                if (currentPoolxTokenBalance != 0) {
                     uint256 remainingBooAmount = _amount - stakingTokenBalance;
                     uint256 remainingxTokenAmount = IBooMirrorWorld(xToken)
                         .BOOForxBOO(remainingBooAmount);
@@ -254,7 +254,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         address[] memory rewardToWftmPaths = poolRewardToWftmPaths[_poolId];
         IERC20 rewardToken = IAceLab(aceLab).poolInfo(_poolId).RewardToken;
         uint256 poolRewardTokenBal = rewardToken.balanceOf(address(this));
-        if (poolRewardTokenBal > 0 && address(rewardToken) != wftm) {
+        if (poolRewardTokenBal != 0 && address(rewardToken) != wftm) {
             // Default to support empty or incomplete path array
             if (rewardToWftmPaths.length < 2) {
                 rewardToWftmPaths = new address[](2);
@@ -354,7 +354,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      */
     function _compoundRewards() internal {
         uint256 wftmBalance = IERC20(wftm).balanceOf(address(this));
-        if (wftmBalance > 0) {
+        if (wftmBalance != 0) {
             IUniswapRouterETH(uniRouter)
                 .swapExactTokensForTokensSupportingFeeOnTransferTokens(
                     wftmBalance,
@@ -376,7 +376,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      */
     function _rebalance() internal {
         uint256 xTokenBalance = IERC20(xToken).balanceOf(address(this));
-        while (xTokenBalance > 0) {
+        while (xTokenBalance != 0) {
             uint256 bestYield = 0;
             uint256 bestYieldPoolId = currentlyUsedPools[0];
             uint256 bestYieldIndex = 0;
@@ -588,7 +588,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     {
         _onlyStrategistOrOwner();
         require(
-            _maxPoolDilutionFactor > 0,
+            _maxPoolDilutionFactor != 0,
             "Must be a positive pool dilution factor"
         );
         maxPoolDilutionFactor = _maxPoolDilutionFactor;
@@ -610,7 +610,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         currentlyUsedPools.push(_poolId);
         poolRewardToWftmPaths[_poolId] = _poolRewardToWftmPath;
         address poolRewardToken;
-        if (_poolRewardToWftmPath.length > 0) {
+        if (_poolRewardToWftmPath.length != 0) {
             poolRewardToken = _poolRewardToWftmPath[0];
         } else {
             poolRewardToken = address(
