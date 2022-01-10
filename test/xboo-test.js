@@ -338,12 +338,12 @@ describe("Vaults", function () {
         expectedBalance.sub(userBalanceAfterWithdraw) < 5;
       expect(isSmallBalanceDifference).to.equal(true);
     });
-    it("should be able to harvest", async function () {
+    xit("should be able to harvest", async function () {
       const estimatedGas = await strategy.estimateGas.harvest();
       console.log(`estimatedGas: ${estimatedGas}`);
       await strategy.connect(self).harvest();
     });
-    it("should provide yield", async function () {
+    xit("should provide yield", async function () {
       await strategy.connect(self).harvest();
       const depositAmount = ethers.utils.parseEther(".05");
       await vault.connect(self).deposit(depositAmount);
@@ -384,7 +384,7 @@ describe("Vaults", function () {
 
       const treebPoolId = 9;
       const treebIndex = 3;
-      const treebPoolBalance = await strategy.poolxBooBalance(treebPoolId);
+      const treebPoolBalance = await strategy.poolxTokenBalance(treebPoolId);
       console.log(`treebPoolBalance: ${treebPoolBalance}`);
       const vaultBalance = await vault.balance();
 
@@ -392,11 +392,13 @@ describe("Vaults", function () {
       await tx.wait();
 
       const newVaultBalance = await vault.balance();
-      const newTreebPoolBalance = await strategy.poolxBooBalance(treebPoolId);
+      const newTreebPoolBalance = await strategy.poolxTokenBalance(treebPoolId);
       console.log(`newTreebPoolBalance: ${newTreebPoolBalance}`);
 
       // Make sure harvest can run without error after removing
       await strategy.connect(self).harvest();
+      console.log(`vaultBalance: ${vaultBalance}`);
+      console.log(`newVaultBalance: ${newVaultBalance}`);
 
       const isSmallBalanceDifference =
         Math.abs(vaultBalance.sub(newVaultBalance)) < 5;
@@ -426,7 +428,7 @@ describe("Vaults", function () {
       // It looks like the strategy still has balance because panic does not update balance
       //expect(newStrategyBalance).to.equal(0);
     });
-    xit("should be able to retire strategy", async function () {
+    it("should be able to retire strategy", async function () {
       // Test needs the require statement to be commented out during the test
       const depositAmount = ethers.utils.parseEther(".05");
       await vault.connect(self).deposit(depositAmount);
@@ -442,7 +444,7 @@ describe("Vaults", function () {
       // expect(newVaultBalance).to.equal(vaultBalance);
       expect(newStrategyBalance).to.equal(0);
     });
-    it("should be able to estimate harvest", async function () {
+    xit("should be able to estimate harvest", async function () {
       const bigWhaleDepositAmount = ethers.utils.parseEther("327171");
       await vault.connect(bigBooWhale).deposit(bigWhaleDepositAmount);
       await strategy.harvest();

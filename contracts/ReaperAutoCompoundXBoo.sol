@@ -8,8 +8,6 @@ import "./interfaces/IUniswapRouterETH.sol";
 import "./interfaces/IPaymentRouter.sol";
 import "./libraries/SafeERC20.sol";
 
-import "hardhat/console.sol";
-
 pragma solidity 0.8.9;
 
 /**
@@ -18,6 +16,7 @@ pragma solidity 0.8.9;
  */
 contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     using SafeERC20 for IERC20;
+    using SafeERC20 for IBooMirrorWorld;
     using SafeMath for uint256;
 
     /**
@@ -27,9 +26,10 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      * {stakingToken} - Token that the strategy maximizes.
      */
     address public constant wftm = 0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83;
-    address public constant xToken = 0xa48d959AE2E88f1dAA7D5F611E01908106dE7598; // xBoo
-    address public constant stakingToken =
-        0x841FAD6EAe12c286d1Fd18d1d525DFfA75C7EFFE; // Boo
+    IBooMirrorWorld public constant xToken =
+        IBooMirrorWorld(0xa48d959AE2E88f1dAA7D5F611E01908106dE7598); // xBoo
+    IERC20 public constant stakingToken =
+        IERC20(0x841FAD6EAe12c286d1Fd18d1d525DFfA75C7EFFE); // Boo
 
     /**
      * @dev Third Party Contracts:
@@ -45,7 +45,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      * {wftmToStakingTokenPaths} - Route we take to get from {wftm} into {stakingToken}.
      * {poolRewardToWftmPaths} - Routes for each pool to get from {pool reward token} into {wftm}.
      */
-    address[] public wftmToStakingTokenPaths;
+    address[] public wftmToStakingTokenPaths = [wftm, address(stakingToken)];
     mapping(uint256 => address[]) public poolRewardToWftmPaths;
 
     /**
@@ -57,7 +57,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      * {WFTM_POOL_ID} - Id for the wftm pool to use as default pool before pool selection
      * {maxPoolDilutionFactor} - The factor that determines what % of a pools total TVL can be deposited (to avoid dilution)
      */
-    uint256 public currentPoolId;
+    uint256 public currentPoolId = WFTM_POOL_ID;
     uint256[] public currentlyUsedPools;
     mapping(uint256 => uint256) public poolYield;
     mapping(uint256 => bool) public hasAllocatedToPool;
@@ -86,9 +86,6 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         address[] memory _feeRemitters,
         address[] memory _strategists
     ) ReaperBaseStrategy(_vault, _feeRemitters, _strategists) {
-        wftmToStakingTokenPaths = [wftm, stakingToken];
-        currentPoolId = WFTM_POOL_ID;
-
         _giveAllowances();
     }
 
@@ -99,18 +96,25 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      * xToken is deposited into other pools to earn additional rewards
      */
     function deposit() public whenNotPaused {
-        uint256 stakingTokenBalance = IERC20(stakingToken).balanceOf(
-            address(this)
-        );
+        uint256 stakingTokenBalance = stakingToken.balanceOf(address(this));
 
         if (stakingTokenBalance != 0) {
-            IBooMirrorWorld(xToken).enter(stakingTokenBalance);
-            uint256 xTokenBalance = IERC20(xToken).balanceOf(address(this));
-            IAceLab(aceLab).deposit(currentPoolId, xTokenBalance);
-            totalPoolBalance = totalPoolBalance.add(xTokenBalance);
-            poolxTokenBalance[currentPoolId] = poolxTokenBalance[currentPoolId]
-                .add(xTokenBalance);
+            xToken.enter(stakingTokenBalance);
+            uint256 xTokenBalance = xToken.balanceOf(address(this));
+            _aceLabDeposit(currentPoolId, xTokenBalance);
         }
+    }
+
+    /**
+     * @dev Function to deposit into AceLab while keeping internal accounting
+     *      updated.
+     */
+    function _aceLabDeposit(uint256 _poolId, uint256 _xTokenAmount) internal {
+        totalPoolBalance = totalPoolBalance.add(_xTokenAmount);
+        poolxTokenBalance[_poolId] = poolxTokenBalance[_poolId].add(
+            _xTokenAmount
+        );
+        IAceLab(aceLab).deposit(_poolId, _xTokenAmount);
     }
 
     /**
@@ -121,9 +125,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     function withdraw(uint256 _amount) external {
         require(msg.sender == vault, "!vault");
 
-        uint256 stakingTokenBalance = IERC20(stakingToken).balanceOf(
-            address(this)
-        );
+        uint256 stakingTokenBalance = stakingToken.balanceOf(address(this));
 
         if (stakingTokenBalance < _amount) {
             for (
@@ -136,26 +138,19 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
                 uint256 currentPoolxTokenBalance = poolxTokenBalance[poolId];
                 if (currentPoolxTokenBalance != 0) {
                     uint256 remainingBooAmount = _amount - stakingTokenBalance;
-                    uint256 remainingxTokenAmount = IBooMirrorWorld(xToken)
-                        .BOOForxBOO(remainingBooAmount);
+                    uint256 remainingxTokenAmount = xToken.BOOForxBOO(
+                        remainingBooAmount
+                    );
                     uint256 withdrawAmount;
                     if (remainingxTokenAmount > currentPoolxTokenBalance) {
                         withdrawAmount = currentPoolxTokenBalance;
                     } else {
                         withdrawAmount = remainingxTokenAmount;
                     }
-                    IAceLab(aceLab).withdraw(poolId, withdrawAmount);
-                    totalPoolBalance = totalPoolBalance.sub(withdrawAmount);
-                    poolxTokenBalance[poolId] = poolxTokenBalance[poolId].sub(
-                        withdrawAmount
-                    );
-                    uint256 xTokenBalance = IERC20(xToken).balanceOf(
-                        address(this)
-                    );
-                    IBooMirrorWorld(xToken).leave(xTokenBalance);
-                    stakingTokenBalance = IERC20(stakingToken).balanceOf(
-                        address(this)
-                    );
+                    _aceLabWithdraw(poolId, withdrawAmount);
+                    uint256 xTokenBalance = xToken.balanceOf(address(this));
+                    xToken.leave(xTokenBalance);
+                    stakingTokenBalance = stakingToken.balanceOf(address(this));
                 }
             }
         }
@@ -166,10 +161,19 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         uint256 withdrawFee = stakingTokenBalance.mul(securityFee).div(
             PERCENT_DIVISOR
         );
-        IERC20(stakingToken).safeTransfer(
-            vault,
-            stakingTokenBalance.sub(withdrawFee)
+        stakingToken.safeTransfer(vault, stakingTokenBalance.sub(withdrawFee));
+    }
+
+    /**
+     * @dev Function to withdraw from AceLab while keeping internal accounting
+     *      updated.
+     */
+    function _aceLabWithdraw(uint256 _poolId, uint256 _xTokenAmount) internal {
+        totalPoolBalance = totalPoolBalance.sub(_xTokenAmount);
+        poolxTokenBalance[_poolId] = poolxTokenBalance[_poolId].sub(
+            _xTokenAmount
         );
+        IAceLab(aceLab).withdraw(_poolId, _xTokenAmount);
     }
 
     /**
@@ -182,7 +186,8 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     function _harvestCore() internal override {
         _collectRewardsAndEstimateYield();
         _chargeFees();
-        _compoundRewards();
+        _swapWftmToStakingToken();
+        _enterXBoo();
         _rebalance();
     }
 
@@ -233,12 +238,10 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         for (uint256 index = 0; index < nrOfUsedPools; index++) {
             uint256 poolId = currentlyUsedPools[index];
             uint256 currentPoolxTokenBalance = poolxTokenBalance[poolId];
-            IAceLab(aceLab).withdraw(poolId, currentPoolxTokenBalance);
-            totalPoolBalance = totalPoolBalance.sub(currentPoolxTokenBalance);
-            poolxTokenBalance[poolId] = 0;
+            hasAllocatedToPool[poolId] = false;
+            _aceLabWithdraw(poolId, currentPoolxTokenBalance);
             _swapRewardToWftm(poolId);
             _setEstimatedYield(poolId);
-            hasAllocatedToPool[poolId] = false;
         }
     }
 
@@ -264,39 +267,51 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     }
 
     /**
-     * @dev Swaps any pool reward token to wftm
+     * @dev Estimates yield in wftm per pool over a given time period
+     *      This is done by taking the total amount of tokens emitted
+     *      and dividing it by the total amount of xBoo staked in the
+     *      pool, and then converted to wftm to give a common unit.
      */
     function _setEstimatedYield(uint256 _poolId) internal {
         IAceLab.PoolInfo memory poolInfo = IAceLab(aceLab).poolInfo(_poolId);
         uint256 _from = block.timestamp;
-        uint256 _to = block.timestamp + 1 days;
+        // Look forward in time by the same time it took between the previous and current harvest
+        uint256 _to = block.timestamp.add(block.timestamp).sub(
+            lastHarvestTimestamp
+        );
+        // Total seconds the pool will receive rewards up to the next harvest (when strategy rebalances)
         uint256 multiplier = _getMultiplier(_from, _to, poolInfo);
         uint256 totalTokens = multiplier * poolInfo.RewardPerSecond;
+        if (totalTokens == 0) {
+            poolYield[_poolId] = 0;
+            return;
+        }
 
         if (address(poolInfo.RewardToken) == wftm) {
             uint256 wftmYield = (1 ether * totalTokens) /
                 poolInfo.xBooStakedAmount;
             poolYield[_poolId] = wftmYield;
         } else {
-            if (totalTokens == 0) {
-                poolYield[_poolId] = 0;
-            } else {
-                uint256 wftmTotalPoolYield = IUniswapRouterETH(uniRouter)
-                    .getAmountsOut(totalTokens, poolRewardToWftmPaths[_poolId])[
-                        1
-                    ];
-                uint256 wftmYield = (1 ether * wftmTotalPoolYield) /
-                    poolInfo.xBooStakedAmount;
-                poolYield[_poolId] = wftmYield;
-            }
+            uint256 wftmTotalPoolYield = IUniswapRouterETH(uniRouter)
+                .getAmountsOut(totalTokens, poolRewardToWftmPaths[_poolId])[1];
+            uint256 wftmYield = (1 ether * wftmTotalPoolYield) /
+                poolInfo.xBooStakedAmount;
+            poolYield[_poolId] = wftmYield;
         }
     }
 
+    /**
+     * @dev This was copied from the AceLab contract, it was an internal
+     *      function so could not be called. It calculates the amount of
+     *      seconds in the given timespan that the pool will receive
+     *      rewards. This prevents the strategy from allocating to pools
+     *      that are ending. So it helps projects the yield in the future.
+     */
     function _getMultiplier(
         uint256 _from,
         uint256 _to,
         IAceLab.PoolInfo memory pool
-    ) internal pure returns (uint256) {
+    ) private pure returns (uint256) {
         _from = _from > pool.startTime ? _from : pool.startTime;
         if (_from > pool.endTime || _to < pool.startTime) {
             return 0;
@@ -340,9 +355,9 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     }
 
     /**
-     * @dev Swaps all {wftm} into {stakingToken} which it deposits into {xToken}
+     * @dev Swaps all {wftm} into {stakingToken}
      */
-    function _compoundRewards() internal {
+    function _swapWftmToStakingToken() internal {
         uint256 wftmBalance = IERC20(wftm).balanceOf(address(this));
         if (wftmBalance != 0) {
             IUniswapRouterETH(uniRouter)
@@ -353,11 +368,12 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
                     address(this),
                     block.timestamp.add(600)
                 );
-            uint256 stakingTokenBalance = IERC20(stakingToken).balanceOf(
-                address(this)
-            );
-            IBooMirrorWorld(xToken).enter(stakingTokenBalance);
         }
+    }
+
+    function _enterXBoo() internal {
+        uint256 stakingTokenBalance = stakingToken.balanceOf(address(this));
+        xToken.enter(stakingTokenBalance);
     }
 
     /**
@@ -365,7 +381,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      * If xToken remains to be deposited picks the 2nd highest yielding pool and so on.
      */
     function _rebalance() internal {
-        uint256 xTokenBalance = IERC20(xToken).balanceOf(address(this));
+        uint256 xTokenBalance = xToken.balanceOf(address(this));
         while (xTokenBalance != 0) {
             uint256 bestYield = 0;
             uint256 bestYieldPoolId = currentlyUsedPools[0];
@@ -376,13 +392,13 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
                 index++
             ) {
                 uint256 poolId = currentlyUsedPools[index];
-                if (hasAllocatedToPool[poolId] == false) {
-                    uint256 currentPoolYield = poolYield[poolId];
-                    if (currentPoolYield >= bestYield) {
-                        bestYield = currentPoolYield;
-                        bestYieldPoolId = poolId;
-                        bestYieldIndex = index;
-                    }
+                if (hasAllocatedToPool[poolId]) continue;
+
+                uint256 currentPoolYield = poolYield[poolId];
+                if (currentPoolYield > bestYield) {
+                    bestYield = currentPoolYield;
+                    bestYieldPoolId = poolId;
+                    bestYieldIndex = index;
                 }
             }
             uint256 poolDepositAmount = xTokenBalance;
@@ -399,13 +415,9 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
                     poolInfo.xBooStakedAmount.div(maxPoolDilutionFactor)
                 );
             }
-            IAceLab(aceLab).deposit(bestYieldPoolId, poolDepositAmount);
-            totalPoolBalance = totalPoolBalance.add(poolDepositAmount);
-            poolxTokenBalance[bestYieldPoolId] = poolxTokenBalance[
-                bestYieldPoolId
-            ].add(poolDepositAmount);
             hasAllocatedToPool[bestYieldPoolId] = true;
-            xTokenBalance = IERC20(xToken).balanceOf(address(this));
+            _aceLabDeposit(bestYieldPoolId, poolDepositAmount);
+            xTokenBalance = xToken.balanceOf(address(this));
             currentPoolId = bestYieldPoolId;
         }
     }
@@ -425,21 +437,21 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      * @dev It calculates how much {stakingToken} the contract holds.
      */
     function balanceOfBoo() public view returns (uint256) {
-        return IERC20(stakingToken).balanceOf(address(this));
+        return stakingToken.balanceOf(address(this));
     }
 
     /**
      * @dev It calculates how much {stakingToken} the contract has staked as xToken.
      */
     function balanceOfxToken() public view returns (uint256) {
-        return IBooMirrorWorld(xToken).BOOBalance(address(this));
+        return xToken.BOOBalance(address(this));
     }
 
     /**
      * @dev It calculates how much {stakingToken} the strategy has allocated in the AceLab pools
      */
     function balanceOfPool() public view returns (uint256) {
-        return IBooMirrorWorld(xToken).xBOOForBOO(totalPoolBalance);
+        return xToken.xBOOForBOO(totalPoolBalance);
     }
 
     /**
@@ -451,21 +463,17 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
             uint256 poolId = currentlyUsedPools[index];
             uint256 balance = poolxTokenBalance[poolId];
-            IAceLab(aceLab).withdraw(poolId, balance);
-            totalPoolBalance = totalPoolBalance.sub(balance);
-            poolxTokenBalance[poolId] = 0;
+            _aceLabWithdraw(poolId, balance);
             _swapRewardToWftm(poolId);
         }
 
-        _compoundRewards();
+        _swapWftmToStakingToken();
 
         uint256 xTokenBalance = IERC20(xToken).balanceOf(address(this));
         IBooMirrorWorld(xToken).leave(xTokenBalance);
 
-        uint256 stakingTokenBalance = IERC20(stakingToken).balanceOf(
-            address(this)
-        );
-        IERC20(stakingToken).transfer(vault, stakingTokenBalance);
+        uint256 stakingTokenBalance = stakingToken.balanceOf(address(this));
+        stakingToken.transfer(vault, stakingTokenBalance);
     }
 
     /**
@@ -473,19 +481,17 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      */
     function panic() public {
         _onlyStrategistOrOwner();
+        pause();
+
         for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
             uint256 poolId = currentlyUsedPools[index];
             IAceLab(aceLab).emergencyWithdraw(poolId);
         }
-        uint256 xTokenBalance = IERC20(xToken).balanceOf(address(this));
-        IBooMirrorWorld(xToken).leave(xTokenBalance);
+        uint256 xTokenBalance = xToken.balanceOf(address(this));
+        xToken.leave(xTokenBalance);
 
-        uint256 stakingTokenBalance = IERC20(stakingToken).balanceOf(
-            address(this)
-        );
-        IERC20(stakingToken).transfer(vault, stakingTokenBalance);
-
-        pause();
+        uint256 stakingTokenBalance = stakingToken.balanceOf(address(this));
+        stakingToken.transfer(vault, stakingTokenBalance);
     }
 
     /**
@@ -517,11 +523,11 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      */
     function _giveAllowances() internal {
         // Give xToken permission to use stakingToken
-        IERC20(stakingToken).safeApprove(xToken, 0);
-        IERC20(stakingToken).safeApprove(xToken, type(uint256).max);
+        stakingToken.safeApprove(address(xToken), 0);
+        stakingToken.safeApprove(address(xToken), type(uint256).max);
         // Give xToken contract permission to stake xToken
-        IERC20(xToken).safeApprove(aceLab, 0);
-        IERC20(xToken).safeApprove(aceLab, type(uint256).max);
+        xToken.safeApprove(aceLab, 0);
+        xToken.safeApprove(aceLab, type(uint256).max);
         // Give uniRouter permission to swap wftm to stakingToken
         IERC20(wftm).safeApprove(uniRouter, 0);
         IERC20(wftm).safeApprove(uniRouter, type(uint256).max);
@@ -535,11 +541,11 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      * in addition to allowance to all pool rewards for the {uniRouter}.
      */
     function _removeAllowances() internal {
-        // Give xToken permission to use stakingToken
-        IERC20(stakingToken).safeApprove(xToken, 0);
-        // Give xToken contract permission to stake xToken
-        IERC20(xToken).safeApprove(aceLab, 0);
-        // Give uniRouter permission to swap wftm to stakingToken
+        // Remove xToken permission to use stakingToken
+        stakingToken.safeApprove(address(xToken), 0);
+        // Remove xToken contract permission to stake xToken
+        xToken.safeApprove(aceLab, 0);
+        // Remove uniRouter permission to swap wftm to stakingToken
         IERC20(wftm).safeApprove(uniRouter, 0);
         _removePoolAllowances();
     }
@@ -576,10 +582,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         external
     {
         _onlyStrategistOrOwner();
-        require(
-            _maxPoolDilutionFactor != 0,
-            "Must be a positive pool dilution factor"
-        );
+        require(_maxPoolDilutionFactor != 0, "!=0");
         maxPoolDilutionFactor = _maxPoolDilutionFactor;
     }
 
@@ -600,14 +603,8 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         );
         currentlyUsedPools.push(_poolId);
         poolRewardToWftmPaths[_poolId] = _poolRewardToWftmPath;
-        address poolRewardToken;
-        if (_poolRewardToWftmPath.length != 0) {
-            poolRewardToken = _poolRewardToWftmPath[0];
-        } else {
-            poolRewardToken = address(
-                IAceLab(aceLab).poolInfo(_poolId).RewardToken
-            );
-        }
+
+        address poolRewardToken = _poolRewardToWftmPath[0];
         if (poolRewardToken != wftm) {
             IERC20(poolRewardToken).safeApprove(uniRouter, type(uint256).max);
         }
@@ -619,21 +616,17 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     function removeUsedPool(uint256 _poolIndex) external {
         _onlyStrategistOrOwner();
         uint256 poolId = currentlyUsedPools[_poolIndex];
-        if (currentPoolId == poolId) {
-            currentPoolId = WFTM_POOL_ID;
-        }
-        IAceLab(aceLab).poolInfo(poolId).RewardToken.safeApprove(uniRouter, 0);
+        IERC20(poolRewardToWftmPaths[poolId][0]).safeApprove(uniRouter, 0);
         uint256 balance = poolxTokenBalance[poolId];
-        IAceLab(aceLab).withdraw(poolId, balance);
-        totalPoolBalance = totalPoolBalance.sub(balance);
-        poolxTokenBalance[poolId] = 0;
+        _aceLabWithdraw(poolId, balance);
         uint256 lastPoolIndex = currentlyUsedPools.length - 1;
         uint256 lastPoolId = currentlyUsedPools[lastPoolIndex];
         currentlyUsedPools[_poolIndex] = lastPoolId;
         currentlyUsedPools.pop();
 
-        if (poolId == WFTM_POOL_ID) {
+        if (currentPoolId == poolId || poolId == WFTM_POOL_ID) {
             currentPoolId = currentlyUsedPools[0];
         }
+        _aceLabDeposit(currentPoolId, balance);
     }
 }
