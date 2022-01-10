@@ -19,11 +19,14 @@ describe("Vaults", function () {
   const i = 0;
   let Vault;
   let Strategy;
+  let PaymentRouter;
   let Treasury;
   let Boo;
   let Acelab;
   let vault;
   let strategy;
+  let paymentRouter;
+  let paymentRouterAddress = "0x603e60d22af05ff77fdcf05c063f582c40e55aae";
   let treasury;
   let boo;
   let booAddress = "0x841FAD6EAe12c286d1Fd18d1d525DFfA75C7EFFE";
@@ -33,6 +36,7 @@ describe("Vaults", function () {
   let booWhale;
   let bigBooWhale;
   let selfAddress;
+  let strategist;
   let owner;
 
   beforeEach(async function () {
@@ -43,7 +47,7 @@ describe("Vaults", function () {
         {
           forking: {
             jsonRpcUrl: "https://rpc.ftm.tools/",
-            blockNumber: 26880530,
+            blockNumber: 27493022,
           },
         },
       ],
@@ -51,9 +55,10 @@ describe("Vaults", function () {
     console.log("providers");
     //get signers
     [owner, addr1, addr2, addr3, addr4, ...addrs] = await ethers.getSigners();
-    const booHolder = "0xb76922bd6747a5a80088f62560e195f17c43e4dd";
+    const booHolder = "0xb18bd5be9508882b3ea934838671da7fe5aa11ca";
     const booWhaleAddress = "0x7ccf7aa75f05f811c478569f939bd325b15cd1bf";
     const bigBooWhaleAddress = "0xe0c15e9fe90d56472d8a43da5d3ef34ae955583c";
+    const strategistAddress = "0x3b410908e71Ee04e7dE2a87f8F9003AFe6c1c7cE";
     await hre.network.provider.request({
       method: "hardhat_impersonateAccount",
       params: [booHolder],
@@ -66,9 +71,14 @@ describe("Vaults", function () {
       method: "hardhat_impersonateAccount",
       params: [bigBooWhaleAddress],
     });
+    await hre.network.provider.request({
+      method: "hardhat_impersonateAccount",
+      params: [strategistAddress],
+    });
     self = await ethers.provider.getSigner(booHolder);
     booWhale = await ethers.provider.getSigner(booWhaleAddress);
     bigBooWhale = await ethers.provider.getSigner(bigBooWhaleAddress);
+    strategist = await ethers.provider.getSigner(strategistAddress);
     await self.sendTransaction({
       to: bigBooWhaleAddress,
       value: ethers.utils.parseEther("0.1"),
@@ -79,6 +89,7 @@ describe("Vaults", function () {
 
     //get artifacts
     Strategy = await ethers.getContractFactory("ReaperAutoCompoundXBoo");
+    PaymentRouter = await ethers.getContractFactory("PaymentRouter");
     Vault = await ethers.getContractFactory("ReaperVaultv1_3");
     Treasury = await ethers.getContractFactory("ReaperTreasury");
     Boo = await ethers.getContractFactory("SpookyToken");
@@ -136,19 +147,21 @@ describe("Vaults", function () {
     const USDC = "0x04068da6c83afcfa0e13ba15a6696662335d5b75";
     const DAI = "0x8d11ec38a3eb5e956b052f67da8bdc9bef8abf3e";
 
-    // Just use any address for testing
-    const strategist = booHolder;
-
     strategy = await Strategy.deploy(
       uniRouter,
       aceLabAddress,
       booAddress,
       xBooAddress,
       vault.address,
-      treasury.address,
-      strategist
+      [treasury.address, paymentRouterAddress],
+      [strategistAddress]
     );
     console.log("strategy");
+
+    paymentRouter = await PaymentRouter.attach(paymentRouterAddress);
+    await paymentRouter
+      .connect(strategist)
+      .addStrategy(strategy.address, [strategistAddress], [100]);
 
     const TUSD_PATHS = [TUSD, USDC, WFTM];
     const SPA_PATHS = [SPA, DAI, WFTM];
@@ -215,7 +228,7 @@ describe("Vaults", function () {
     console.log("approvals6");
   });
 
-  xdescribe("Deploying the vault and strategy", function () {
+  describe("Deploying the vault and strategy", function () {
     xit("should initiate vault with a 0 balance", async function () {
       console.log(1);
       const totalBalance = await vault.balance();
@@ -333,7 +346,7 @@ describe("Vaults", function () {
     xit("should be able to harvest", async function () {
       await strategy.connect(self).harvest();
     });
-    it("should provide yield", async function () {
+    xit("should provide yield", async function () {
       await strategy.connect(self).harvest();
       const depositAmount = ethers.utils.parseEther(".05");
       await vault.connect(self).deposit(depositAmount);
@@ -366,7 +379,7 @@ describe("Vaults", function () {
     });
   });
   describe("Strategy", function () {
-    xit("should be able to remove a pool", async function () {
+    it("should be able to remove a pool", async function () {
       await strategy.connect(self).harvest();
       const bigWhaleDepositAmount = ethers.utils.parseEther("327171");
       await vault.connect(bigBooWhale).deposit(bigWhaleDepositAmount);
@@ -388,8 +401,11 @@ describe("Vaults", function () {
       // Make sure harvest can run without error after removing
       await strategy.connect(self).harvest();
 
+      const isSmallBalanceDifference =
+        Math.abs(vaultBalance.sub(newVaultBalance)) < 5;
+
       expect(newTreebPoolBalance).to.equal(0);
-      expect(vaultBalance).to.equal(newVaultBalance);
+      expect(isSmallBalanceDifference).to.equal(true);
     });
     xit("should be able to pause and unpause", async function () {
       await strategy.pause();
@@ -413,7 +429,7 @@ describe("Vaults", function () {
       // It looks like the strategy still has balance because panic does not update balance
       //expect(newStrategyBalance).to.equal(0);
     });
-    xit("should be able to retire strategy", async function () {
+    it("should be able to retire strategy", async function () {
       // Test needs the require statement to be commented out during the test
       const depositAmount = ethers.utils.parseEther(".05");
       await vault.connect(self).deposit(depositAmount);

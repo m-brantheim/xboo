@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-import "./abstract/Ownable.sol";
-import "./abstract/Pausable.sol";
 import "./abstract/ReaperBaseStrategy.sol";
 import "./interfaces/IERC20.sol";
 import "./interfaces/IAceLab.sol";
 import "./interfaces/IBooMirrorWorld.sol";
 import "./interfaces/IUniswapRouterETH.sol";
+import "./interfaces/IPaymentRouter.sol";
 import "./libraries/SafeERC20.sol";
-import "./libraries/SafeMath.sol";
 
 import "hardhat/console.sol";
 
@@ -87,9 +85,9 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         address _rewardToken,
         address _xBoo,
         address _vault,
-        address _treasury,
-        address _strategist
-    ) ReaperBaseStrategy(_vault, _treasury, _strategist) {
+        address[] memory _feeRemitters,
+        address[] memory _strategists
+    ) ReaperBaseStrategy(_vault, _feeRemitters, _strategists) {
         uniRouter = _uniRouter;
         aceLab = _aceLab;
         boo = _rewardToken;
@@ -275,15 +273,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         IAceLab.PoolInfo memory poolInfo = IAceLab(aceLab).poolInfo(_poolId);
         uint256 _from = block.timestamp;
         uint256 _to = block.timestamp + 1 days;
-        uint256 multiplier;
-        _from = _from > poolInfo.startTime ? _from : poolInfo.startTime;
-        if (_from > poolInfo.endTime || _to < poolInfo.startTime) {
-            multiplier = 0;
-        }
-        if (_to > poolInfo.endTime) {
-            multiplier = poolInfo.endTime - _from;
-        }
-        multiplier = _to - _from;
+        uint256 multiplier = _getMultiplier(_from, _to, poolInfo);
         uint256 totalTokens = multiplier * poolInfo.RewardPerSecond;
 
         if (address(poolInfo.RewardToken) == wftm) {
@@ -306,22 +296,37 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         }
     }
 
+    function _getMultiplier(
+        uint256 _from,
+        uint256 _to,
+        IAceLab.PoolInfo memory pool
+    ) internal pure returns (uint256) {
+        _from = _from > pool.startTime ? _from : pool.startTime;
+        if (_from > pool.endTime || _to < pool.startTime) {
+            return 0;
+        }
+        if (_to > pool.endTime) {
+            return pool.endTime - _from;
+        }
+        return _to - _from;
+    }
+
     /**
      * @dev Takes out fees from the rewards. Set by constructor
      * callFeeToUser is set as a percentage of the fee,
      * as is treasuryFeeToVault
      */
     function _chargeFees() internal {
-        if (totalFee != 0) {
-            uint256 wftmBalance = IERC20(wftm).balanceOf(address(this));
-            uint256 wftmFee = wftmBalance.mul(totalFee).div(PERCENT_DIVISOR);
+        uint256 wftmFee = IERC20(wftm)
+            .balanceOf(address(this))
+            .mul(totalFee)
+            .div(PERCENT_DIVISOR);
 
+        if (wftmFee != 0) {
             uint256 callFeeToUser = wftmFee.mul(callFee).div(PERCENT_DIVISOR);
-
             uint256 treasuryFeeToVault = wftmFee.mul(treasuryFee).div(
                 PERCENT_DIVISOR
             );
-
             uint256 feeToStrategist = treasuryFeeToVault.mul(strategistFee).div(
                 PERCENT_DIVISOR
             );
@@ -329,7 +334,12 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
 
             IERC20(wftm).safeTransfer(msg.sender, callFeeToUser);
             IERC20(wftm).safeTransfer(treasury, treasuryFeeToVault);
-            IERC20(wftm).safeTransfer(strategist, feeToStrategist);
+            IERC20(wftm).safeApprove(strategistRemitter, 0);
+            IERC20(wftm).safeApprove(strategistRemitter, feeToStrategist);
+            IPaymentRouter(strategistRemitter).routePayment(
+                wftm,
+                feeToStrategist
+            );
         }
     }
 
@@ -460,7 +470,8 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     /**
      * @dev Pauses deposits. Withdraws all funds from the AceLab contract, leaving rewards behind.
      */
-    function panic() public onlyOwner {
+    function panic() public {
+        _onlyStrategistOrOwner();
         for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
             uint8 poolId = currentlyUsedPools[index];
             IAceLab(aceLab).emergencyWithdraw(poolId);
@@ -477,7 +488,8 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     /**
      * @dev Pauses the strat.
      */
-    function pause() public onlyOwner {
+    function pause() public {
+        _onlyStrategistOrOwner();
         _pause();
         _removeAllowances();
     }
@@ -485,7 +497,8 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     /**
      * @dev Unpauses the strat.
      */
-    function unpause() external onlyOwner {
+    function unpause() external {
+        _onlyStrategistOrOwner();
         _unpause();
 
         _giveAllowances();
