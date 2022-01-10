@@ -113,7 +113,6 @@ describe("Vaults", function () {
     );
     console.log("vault");
 
-    const uniRouter = "0xF491e7B69E4244ad4002BC14e878a34207E38c29";
     console.log(`vault.address: ${vault.address}`);
     console.log(`treasury.address: ${treasury.address}`);
 
@@ -148,10 +147,6 @@ describe("Vaults", function () {
     const DAI = "0x8d11ec38a3eb5e956b052f67da8bdc9bef8abf3e";
 
     strategy = await Strategy.deploy(
-      uniRouter,
-      aceLabAddress,
-      booAddress,
-      xBooAddress,
       vault.address,
       [treasury.address, paymentRouterAddress],
       [strategistAddress]
@@ -346,7 +341,7 @@ describe("Vaults", function () {
     xit("should be able to harvest", async function () {
       await strategy.connect(self).harvest();
     });
-    xit("should provide yield", async function () {
+    it("should provide yield", async function () {
       await strategy.connect(self).harvest();
       const depositAmount = ethers.utils.parseEther(".05");
       await vault.connect(self).deposit(depositAmount);
@@ -379,7 +374,7 @@ describe("Vaults", function () {
     });
   });
   describe("Strategy", function () {
-    it("should be able to remove a pool", async function () {
+    xit("should be able to remove a pool", async function () {
       await strategy.connect(self).harvest();
       const bigWhaleDepositAmount = ethers.utils.parseEther("327171");
       await vault.connect(bigBooWhale).deposit(bigWhaleDepositAmount);
@@ -429,7 +424,7 @@ describe("Vaults", function () {
       // It looks like the strategy still has balance because panic does not update balance
       //expect(newStrategyBalance).to.equal(0);
     });
-    it("should be able to retire strategy", async function () {
+    xit("should be able to retire strategy", async function () {
       // Test needs the require statement to be commented out during the test
       const depositAmount = ethers.utils.parseEther(".05");
       await vault.connect(self).deposit(depositAmount);
