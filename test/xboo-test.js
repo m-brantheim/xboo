@@ -338,7 +338,9 @@ describe("Vaults", function () {
         expectedBalance.sub(userBalanceAfterWithdraw) < 5;
       expect(isSmallBalanceDifference).to.equal(true);
     });
-    xit("should be able to harvest", async function () {
+    it("should be able to harvest", async function () {
+      const estimatedGas = await strategy.estimateGas.harvest();
+      console.log(`estimatedGas: ${estimatedGas}`);
       await strategy.connect(self).harvest();
     });
     it("should provide yield", async function () {
@@ -440,7 +442,7 @@ describe("Vaults", function () {
       // expect(newVaultBalance).to.equal(vaultBalance);
       expect(newStrategyBalance).to.equal(0);
     });
-    xit("should be able to estimate harvest", async function () {
+    it("should be able to estimate harvest", async function () {
       const bigWhaleDepositAmount = ethers.utils.parseEther("327171");
       await vault.connect(bigBooWhale).deposit(bigWhaleDepositAmount);
       await strategy.harvest();

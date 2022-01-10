@@ -128,7 +128,8 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         if (stakingTokenBalance < _amount) {
             for (
                 uint256 index = 0;
-                index < currentlyUsedPools.length;
+                index < currentlyUsedPools.length &&
+                    stakingTokenBalance < _amount;
                 index++
             ) {
                 uint256 poolId = currentlyUsedPools[index];
@@ -155,9 +156,6 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
                     stakingTokenBalance = IERC20(stakingToken).balanceOf(
                         address(this)
                     );
-                    if (stakingTokenBalance >= _amount) {
-                        break;
-                    }
                 }
             }
         }
@@ -207,18 +205,15 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
             if (pendingReward == 0) {
                 continue;
             }
-            address rewardToken = address(
-                IAceLab(aceLab).poolInfo(poolId).RewardToken
-            );
-            if (rewardToken == wftm) {
+
+            if (poolRewardToWftmPaths[poolId][0] == wftm) {
                 profit = profit.add(pendingReward);
             } else {
-                address[] memory path = new address[](2);
-                path[0] = rewardToken;
-                path[1] = wftm;
-
                 uint256[] memory amountOutMins = IUniswapRouterETH(uniRouter)
-                    .getAmountsOut(pendingReward, path);
+                    .getAmountsOut(
+                        pendingReward,
+                        poolRewardToWftmPaths[poolId]
+                    );
                 profit = profit.add(amountOutMins[1]);
             }
         }
@@ -252,15 +247,11 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      */
     function _swapRewardToWftm(uint256 _poolId) internal {
         address[] memory rewardToWftmPaths = poolRewardToWftmPaths[_poolId];
-        IERC20 rewardToken = IAceLab(aceLab).poolInfo(_poolId).RewardToken;
-        uint256 poolRewardTokenBal = rewardToken.balanceOf(address(this));
-        if (poolRewardTokenBal != 0 && address(rewardToken) != wftm) {
-            // Default to support empty or incomplete path array
-            if (rewardToWftmPaths.length < 2) {
-                rewardToWftmPaths = new address[](2);
-                rewardToWftmPaths[0] = address(rewardToken);
-                rewardToWftmPaths[1] = wftm;
-            }
+        address rewardToken = rewardToWftmPaths[0];
+        uint256 poolRewardTokenBal = IERC20(rewardToken).balanceOf(
+            address(this)
+        );
+        if (poolRewardTokenBal != 0 && rewardToken != wftm) {
             IUniswapRouterETH(uniRouter)
                 .swapExactTokensForTokensSupportingFeeOnTransferTokens(
                     poolRewardTokenBal,
@@ -290,11 +281,10 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
             if (totalTokens == 0) {
                 poolYield[_poolId] = 0;
             } else {
-                address[] memory path = new address[](2);
-                path[0] = address(poolInfo.RewardToken);
-                path[1] = wftm;
                 uint256 wftmTotalPoolYield = IUniswapRouterETH(uniRouter)
-                    .getAmountsOut(totalTokens, path)[1];
+                    .getAmountsOut(totalTokens, poolRewardToWftmPaths[_poolId])[
+                        1
+                    ];
                 uint256 wftmYield = (1 ether * wftmTotalPoolYield) /
                     poolInfo.xBooStakedAmount;
                 poolYield[_poolId] = wftmYield;
@@ -559,9 +549,9 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      */
     function _givePoolAllowances() internal {
         for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
-            IERC20 rewardToken = IAceLab(aceLab)
-                .poolInfo(currentlyUsedPools[index])
-                .RewardToken;
+            IERC20 rewardToken = IERC20(
+                poolRewardToWftmPaths[currentlyUsedPools[index]][0]
+            );
             rewardToken.safeApprove(uniRouter, 0);
             rewardToken.safeApprove(uniRouter, type(uint256).max);
         }
@@ -572,11 +562,10 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      */
     function _removePoolAllowances() internal {
         for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
-            uint256 poolId = currentlyUsedPools[index];
-            IAceLab(aceLab).poolInfo(poolId).RewardToken.safeApprove(
-                uniRouter,
-                0
+            IERC20 rewardToken = IERC20(
+                poolRewardToWftmPaths[currentlyUsedPools[index]][0]
             );
+            rewardToken.safeApprove(uniRouter, 0);
         }
     }
 
@@ -604,8 +593,10 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     ) external {
         _onlyStrategistOrOwner();
         require(
-            _poolRewardToWftmPath.length >= 2,
-            "Must have at least 2 addresses in reward path"
+            _poolRewardToWftmPath.length >= 2 ||
+                (_poolRewardToWftmPath.length == 1 &&
+                    _poolRewardToWftmPath[0] == wftm),
+            "Must have reward paths"
         );
         currentlyUsedPools.push(_poolId);
         poolRewardToWftmPaths[_poolId] = _poolRewardToWftmPath;
