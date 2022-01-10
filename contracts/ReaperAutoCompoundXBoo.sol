@@ -46,7 +46,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      * {poolRewardToWftmPaths} - Routes for each pool to get from {pool reward token} into {wftm}.
      */
     address[] public wftmToStakingTokenPaths;
-    mapping(uint8 => address[]) public poolRewardToWftmPaths;
+    mapping(uint256 => address[]) public poolRewardToWftmPaths;
 
     /**
      * @dev Variables for pool selection
@@ -57,12 +57,12 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      * {WFTM_POOL_ID} - Id for the wftm pool to use as default pool before pool selection
      * {maxPoolDilutionFactor} - The factor that determines what % of a pools total TVL can be deposited (to avoid dilution)
      */
-    uint8 public currentPoolId;
-    uint8[] public currentlyUsedPools;
-    mapping(uint8 => uint256) public poolYield;
-    mapping(uint8 => bool) public hasAllocatedToPool;
-    uint8 private constant WFTM_POOL_ID = 2;
-    uint8 public maxPoolDilutionFactor = 5;
+    uint256 public currentPoolId;
+    uint256[] public currentlyUsedPools;
+    mapping(uint256 => uint256) public poolYield;
+    mapping(uint256 => bool) public hasAllocatedToPool;
+    uint256 private constant WFTM_POOL_ID = 2;
+    uint256 public maxPoolDilutionFactor = 5;
 
     /**
      * @dev Variables for pool selection
@@ -70,7 +70,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      * {poolxTokenBalance} - The amount of xToken deposited into each pool
      */
     uint256 public totalPoolBalance = 0;
-    mapping(uint8 => uint256) public poolxTokenBalance;
+    mapping(uint256 => uint256) public poolxTokenBalance;
 
     /**
      * {UpdatedStrategist} Event that is fired each time the strategist role is updated.
@@ -131,7 +131,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
                 index < currentlyUsedPools.length;
                 index++
             ) {
-                uint8 poolId = currentlyUsedPools[index];
+                uint256 poolId = currentlyUsedPools[index];
                 uint256 currentPoolxTokenBalance = poolxTokenBalance[poolId];
                 if (currentPoolxTokenBalance > 0) {
                     uint256 remainingBooAmount = _amount - stakingTokenBalance;
@@ -199,7 +199,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         returns (uint256 profit, uint256 callFeeToUser)
     {
         for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
-            uint8 poolId = currentlyUsedPools[index];
+            uint256 poolId = currentlyUsedPools[index];
             uint256 pendingReward = IAceLab(aceLab).pendingReward(
                 poolId,
                 address(this)
@@ -236,7 +236,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     function _collectRewardsAndEstimateYield() internal {
         uint256 nrOfUsedPools = currentlyUsedPools.length;
         for (uint256 index = 0; index < nrOfUsedPools; index++) {
-            uint8 poolId = currentlyUsedPools[index];
+            uint256 poolId = currentlyUsedPools[index];
             uint256 currentPoolxTokenBalance = poolxTokenBalance[poolId];
             IAceLab(aceLab).withdraw(poolId, currentPoolxTokenBalance);
             totalPoolBalance = totalPoolBalance.sub(currentPoolxTokenBalance);
@@ -250,7 +250,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     /**
      * @dev Swaps any pool reward token to wftm
      */
-    function _swapRewardToWftm(uint8 _poolId) internal {
+    function _swapRewardToWftm(uint256 _poolId) internal {
         address[] memory rewardToWftmPaths = poolRewardToWftmPaths[_poolId];
         IERC20 rewardToken = IAceLab(aceLab).poolInfo(_poolId).RewardToken;
         uint256 poolRewardTokenBal = rewardToken.balanceOf(address(this));
@@ -275,7 +275,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     /**
      * @dev Swaps any pool reward token to wftm
      */
-    function _setEstimatedYield(uint8 _poolId) internal {
+    function _setEstimatedYield(uint256 _poolId) internal {
         IAceLab.PoolInfo memory poolInfo = IAceLab(aceLab).poolInfo(_poolId);
         uint256 _from = block.timestamp;
         uint256 _to = block.timestamp + 1 days;
@@ -378,14 +378,14 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         uint256 xTokenBalance = IERC20(xToken).balanceOf(address(this));
         while (xTokenBalance > 0) {
             uint256 bestYield = 0;
-            uint8 bestYieldPoolId = currentlyUsedPools[0];
+            uint256 bestYieldPoolId = currentlyUsedPools[0];
             uint256 bestYieldIndex = 0;
             for (
                 uint256 index = 0;
                 index < currentlyUsedPools.length;
                 index++
             ) {
-                uint8 poolId = currentlyUsedPools[index];
+                uint256 poolId = currentlyUsedPools[index];
                 if (hasAllocatedToPool[poolId] == false) {
                     uint256 currentPoolYield = poolYield[poolId];
                     if (currentPoolYield >= bestYield) {
@@ -459,7 +459,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     function retireStrat() external {
         require(msg.sender == vault, "!vault");
         for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
-            uint8 poolId = currentlyUsedPools[index];
+            uint256 poolId = currentlyUsedPools[index];
             uint256 balance = poolxTokenBalance[poolId];
             IAceLab(aceLab).withdraw(poolId, balance);
             totalPoolBalance = totalPoolBalance.sub(balance);
@@ -484,7 +484,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     function panic() public {
         _onlyStrategistOrOwner();
         for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
-            uint8 poolId = currentlyUsedPools[index];
+            uint256 poolId = currentlyUsedPools[index];
             IAceLab(aceLab).emergencyWithdraw(poolId);
         }
         uint256 xTokenBalance = IERC20(xToken).balanceOf(address(this));
@@ -572,7 +572,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      */
     function _removePoolAllowances() internal {
         for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
-            uint8 poolId = currentlyUsedPools[index];
+            uint256 poolId = currentlyUsedPools[index];
             IAceLab(aceLab).poolInfo(poolId).RewardToken.safeApprove(
                 uniRouter,
                 0
@@ -583,7 +583,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     /**
      * @dev updates the {maxPoolDilutionFactor}
      */
-    function updateMaxPoolDilutionFactor(uint8 _maxPoolDilutionFactor)
+    function updateMaxPoolDilutionFactor(uint256 _maxPoolDilutionFactor)
         external
     {
         _onlyStrategistOrOwner();
@@ -598,9 +598,10 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      * @dev Adds a pool from the {aceLab} contract to be actively used to yield.
      * _poolRewardToWftmPath can be empty if the paths are standard rewardToken -> wftm
      */
-    function addUsedPool(uint8 _poolId, address[] memory _poolRewardToWftmPath)
-        external
-    {
+    function addUsedPool(
+        uint256 _poolId,
+        address[] memory _poolRewardToWftmPath
+    ) external {
         _onlyStrategistOrOwner();
         require(
             _poolRewardToWftmPath.length >= 2,
@@ -624,9 +625,9 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     /**
      * @dev Removes a pool that will no longer be used.
      */
-    function removeUsedPool(uint8 _poolIndex) external {
+    function removeUsedPool(uint256 _poolIndex) external {
         _onlyStrategistOrOwner();
-        uint8 poolId = currentlyUsedPools[_poolIndex];
+        uint256 poolId = currentlyUsedPools[_poolIndex];
         if (currentPoolId == poolId) {
             currentPoolId = WFTM_POOL_ID;
         }
@@ -636,7 +637,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         totalPoolBalance = totalPoolBalance.sub(balance);
         poolxTokenBalance[poolId] = 0;
         uint256 lastPoolIndex = currentlyUsedPools.length - 1;
-        uint8 lastPoolId = currentlyUsedPools[lastPoolIndex];
+        uint256 lastPoolId = currentlyUsedPools[lastPoolIndex];
         currentlyUsedPools[_poolIndex] = lastPoolId;
         currentlyUsedPools.pop();
 
