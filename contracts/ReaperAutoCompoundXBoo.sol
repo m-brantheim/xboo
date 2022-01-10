@@ -403,11 +403,11 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
             if (
                 isNotWFTM &&
                 poolDepositAmount >
-                (poolInfo.xBooStakedAmount / maxPoolDilutionFactor)
+                (poolInfo.xBooStakedAmount.div(maxPoolDilutionFactor))
             ) {
-                poolDepositAmount =
-                    poolInfo.xBooStakedAmount /
-                    maxPoolDilutionFactor;
+                poolDepositAmount = (
+                    poolInfo.xBooStakedAmount.div(maxPoolDilutionFactor)
+                );
             }
             IAceLab(aceLab).deposit(bestYieldPoolId, poolDepositAmount);
             totalPoolBalance = totalPoolBalance.add(poolDepositAmount);
