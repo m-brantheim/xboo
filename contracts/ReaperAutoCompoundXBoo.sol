@@ -427,7 +427,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      * It takes into account both the funds in hand, as the funds allocated in xToken and the AceLab pools.
      */
     function balanceOf() public view override returns (uint256) {
-        uint256 balance = balanceOfBoo().add(
+        uint256 balance = balanceOfStakingToken().add(
             balanceOfxToken().add(balanceOfPool())
         );
         return balance;
@@ -436,7 +436,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     /**
      * @dev It calculates how much {stakingToken} the contract holds.
      */
-    function balanceOfBoo() public view returns (uint256) {
+    function balanceOfStakingToken() public view returns (uint256) {
         return stakingToken.balanceOf(address(this));
     }
 
