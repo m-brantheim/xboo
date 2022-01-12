@@ -24,7 +24,9 @@ interface IAceLab {
         address protocolOwnerAddress; // this address is the owner of the protocol corresponding to the reward token, used for emergency withdraw to them only
     }
 
-    function poolInfo(uint256 _index) external view returns (PoolInfo memory);
+    function poolInfo(uint256 _poolId) external view returns (PoolInfo memory);
+
+    function userInfo(uint256 _poolId, address userAddress) external view returns (uint256 amount, uint256 rewardDebt);
 
     function poolLength() external view returns (uint256);
 

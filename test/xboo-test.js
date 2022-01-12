@@ -428,7 +428,7 @@ describe("Vaults", function () {
       // It looks like the strategy still has balance because panic does not update balance
       //expect(newStrategyBalance).to.equal(0);
     });
-    it("should be able to retire strategy", async function () {
+    xit("should be able to retire strategy", async function () {
       // Test needs the require statement to be commented out during the test
       const depositAmount = ethers.utils.parseEther(".05");
       await vault.connect(self).deposit(depositAmount);
@@ -458,6 +458,30 @@ describe("Vaults", function () {
       const hasCallFee = callFeeToUser.gt(0);
       expect(hasProfit).to.equal(true);
       expect(hasCallFee).to.equal(true);
+    });
+    it("should be able to check internal accounting", async function () {
+      const bigWhaleDepositAmount = ethers.utils.parseEther("327171");
+      await vault.connect(bigBooWhale).deposit(bigWhaleDepositAmount);
+      await strategy.harvest();
+      const minute = 60;
+      const hour = 60 * minute;
+      const day = 24 * hour;
+      await moveTimeForward(10 * day);
+      await updatePools(acelab);
+      const isAccurate = await strategy.isInternalAccountingAccurate();
+      expect(isAccurate).to.equal(true);
+    });
+    it("should be able to update internal accounting", async function () {
+      const bigWhaleDepositAmount = ethers.utils.parseEther("327171");
+      await vault.connect(bigBooWhale).deposit(bigWhaleDepositAmount);
+      await strategy.harvest();
+      const minute = 60;
+      const hour = 60 * minute;
+      const day = 24 * hour;
+      await moveTimeForward(10 * day);
+      await updatePools(acelab);
+      await expect(strategy.updateInternalAccounting()).to.not.be
+        .reverted;
     });
   });
 });

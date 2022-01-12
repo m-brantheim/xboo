@@ -176,6 +176,28 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         IAceLab(aceLab).withdraw(_poolId, _xTokenAmount);
     }
 
+    function isInternalAccountingAccurate() external view returns (bool) {
+        for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
+            uint256 _poolId = currentlyUsedPools[index];
+            (uint256 amount, ) = IAceLab(aceLab).userInfo(_poolId, address(this));
+            uint256 internalBalance = poolxTokenBalance[_poolId];
+            if (amount != internalBalance) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function updateInternalAccounting() external returns (bool)  {
+        _onlyStrategistOrOwner();
+        for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
+            uint256 _poolId = currentlyUsedPools[index];
+            (uint256 amount, ) = IAceLab(aceLab).userInfo(_poolId, address(this));
+            poolxTokenBalance[_poolId] = amount;
+        }
+        return true;
+    }
+
     /**
      * @dev Core function of the strat, in charge of collecting and re-investing rewards.
      * 1. It claims rewards from the AceLab pools and estimated the current yield for each pool.
