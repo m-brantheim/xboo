@@ -26,7 +26,10 @@ interface IAceLab {
 
     function poolInfo(uint256 _poolId) external view returns (PoolInfo memory);
 
-    function userInfo(uint256 _poolId, address userAddress) external view returns (uint256 amount, uint256 rewardDebt);
+    function userInfo(uint256 _poolId, address _userAddress)
+        external
+        view
+        returns (uint256 amount, uint256 rewardDebt);
 
     function poolLength() external view returns (uint256);
 

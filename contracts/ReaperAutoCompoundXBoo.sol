@@ -181,6 +181,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      * @dev Check if the internal pool accounting matches with AceLab
      */
     function isInternalAccountingAccurate() external view returns (bool) {
+        uint256 total = 0;
         for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
             uint256 _poolId = currentlyUsedPools[index];
             (uint256 amount, ) = IAceLab(aceLab).userInfo(
@@ -188,9 +189,13 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
                 address(this)
             );
             uint256 internalBalance = poolxTokenBalance[_poolId];
+            total = total.add(amount);
             if (amount != internalBalance) {
                 return false;
             }
+        }
+        if (total != totalPoolBalance) {
+            return false;
         }
         return true;
     }
@@ -201,6 +206,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      */
     function updateInternalAccounting() external returns (bool) {
         _onlyStrategistOrOwner();
+        uint256 total = 0;
         for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
             uint256 _poolId = currentlyUsedPools[index];
             (uint256 amount, ) = IAceLab(aceLab).userInfo(
@@ -208,7 +214,9 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
                 address(this)
             );
             poolxTokenBalance[_poolId] = amount;
+            total = total.add(amount);
         }
+        totalPoolBalance = total;
         return true;
     }
 
