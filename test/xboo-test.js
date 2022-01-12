@@ -459,7 +459,7 @@ describe("Vaults", function () {
       expect(hasProfit).to.equal(true);
       expect(hasCallFee).to.equal(true);
     });
-    it("should be able to check internal accounting", async function () {
+    xit("should be able to check internal accounting", async function () {
       const bigWhaleDepositAmount = ethers.utils.parseEther("327171");
       await vault.connect(bigBooWhale).deposit(bigWhaleDepositAmount);
       await strategy.harvest();
@@ -471,7 +471,7 @@ describe("Vaults", function () {
       const isAccurate = await strategy.isInternalAccountingAccurate();
       expect(isAccurate).to.equal(true);
     });
-    it("should be able to update internal accounting", async function () {
+    xit("should be able to update internal accounting", async function () {
       const bigWhaleDepositAmount = ethers.utils.parseEther("327171");
       await vault.connect(bigBooWhale).deposit(bigWhaleDepositAmount);
       await strategy.harvest();
@@ -480,8 +480,20 @@ describe("Vaults", function () {
       const day = 24 * hour;
       await moveTimeForward(10 * day);
       await updatePools(acelab);
-      await expect(strategy.updateInternalAccounting()).to.not.be
+      await expect(strategy.updateInternalAccounting()).to.not.be.reverted;
+    });
+    it("cannot add pools past the max cap", async function () {
+      const WFTM_ID = 2;
+      const WFTM = "0x21be370d5312f44cb42ce377bc9b8a0cef1a4c83";
+
+      await expect(strategy.addUsedPool(WFTM_ID, [WFTM, WFTM])).to.not.be
         .reverted;
+      await expect(strategy.addUsedPool(WFTM_ID, [WFTM, WFTM])).to.not.be
+        .reverted;
+      await expect(strategy.addUsedPool(WFTM_ID, [WFTM, WFTM])).to.not.be
+        .reverted;
+      // Pool 16 is reverted
+      await expect(strategy.addUsedPool(WFTM_ID, [WFTM, WFTM])).to.be.reverted;
     });
   });
 });

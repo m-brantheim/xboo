@@ -63,6 +63,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     mapping(uint256 => bool) public hasAllocatedToPool;
     uint256 private constant WFTM_POOL_ID = 2;
     uint256 public maxPoolDilutionFactor = 5;
+    uint256 public maxNrOfPools = 15;
 
     /**
      * @dev Variables for pool selection
@@ -176,10 +177,16 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         IAceLab(aceLab).withdraw(_poolId, _xTokenAmount);
     }
 
+    /**
+     * @dev Check if the internal pool accounting matches with AceLab
+     */
     function isInternalAccountingAccurate() external view returns (bool) {
         for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
             uint256 _poolId = currentlyUsedPools[index];
-            (uint256 amount, ) = IAceLab(aceLab).userInfo(_poolId, address(this));
+            (uint256 amount, ) = IAceLab(aceLab).userInfo(
+                _poolId,
+                address(this)
+            );
             uint256 internalBalance = poolxTokenBalance[_poolId];
             if (amount != internalBalance) {
                 return false;
@@ -188,11 +195,18 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         return true;
     }
 
-    function updateInternalAccounting() external returns (bool)  {
+    /**
+     * @dev If internal accounting is off this function can synchronize
+     *      the internal pool accounting with AceLab
+     */
+    function updateInternalAccounting() external returns (bool) {
         _onlyStrategistOrOwner();
         for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
             uint256 _poolId = currentlyUsedPools[index];
-            (uint256 amount, ) = IAceLab(aceLab).userInfo(_poolId, address(this));
+            (uint256 amount, ) = IAceLab(aceLab).userInfo(
+                _poolId,
+                address(this)
+            );
             poolxTokenBalance[_poolId] = amount;
         }
         return true;
@@ -609,6 +623,15 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     }
 
     /**
+     * @dev updates the {maxNrOfPools}
+     */
+    function updateMaxNrOfPools(uint256 _maxNrOfPools) external {
+        require(maxNrOfPools != 0, "!=0");
+        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Not authorized");
+        maxNrOfPools = _maxNrOfPools;
+    }
+
+    /**
      * @dev Adds a pool from the {aceLab} contract to be actively used to yield.
      * _poolRewardToWftmPath can be empty if the paths are standard rewardToken -> wftm
      */
@@ -617,6 +640,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         address[] memory _poolRewardToWftmPath
     ) external {
         _onlyStrategistOrOwner();
+        require(currentlyUsedPools.length < maxNrOfPools, "Max pools reached");
         require(
             _poolRewardToWftmPath.length >= 2 ||
                 (_poolRewardToWftmPath.length == 1 &&
