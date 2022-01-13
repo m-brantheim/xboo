@@ -134,20 +134,15 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     function withdraw(uint256 _amount) external {
         require(msg.sender == vault, "!vault");
 
-        netDepositSinceLastHarvest =
-            netDepositSinceLastHarvest -
-            int256(_amount);
-
         uint256 stakingTokenBalance = stakingToken.balanceOf(address(this));
 
         if (stakingTokenBalance < _amount) {
             for (
-                uint256 index = 0;
-                index < currentlyUsedPools.length &&
-                    stakingTokenBalance < _amount;
-                index++
+                uint256 index = currentlyUsedPools.length;
+                index > 0 && stakingTokenBalance < _amount;
+                index--
             ) {
-                uint256 poolId = currentlyUsedPools[index];
+                uint256 poolId = currentlyUsedPools[index - 1];
                 uint256 currentPoolxTokenBalance = poolxTokenBalance[poolId];
                 if (currentPoolxTokenBalance != 0) {
                     uint256 remainingBooAmount = _amount - stakingTokenBalance;
@@ -171,6 +166,11 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         if (stakingTokenBalance > _amount) {
             stakingTokenBalance = _amount;
         }
+
+        netDepositSinceLastHarvest =
+            netDepositSinceLastHarvest -
+            int256(stakingTokenBalance);
+
         uint256 withdrawFee = stakingTokenBalance.mul(securityFee).div(
             PERCENT_DIVISOR
         );

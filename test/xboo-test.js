@@ -482,7 +482,7 @@ describe("Vaults", function () {
       await updatePools(acelab);
       await expect(strategy.updateInternalAccounting()).to.not.be.reverted;
     });
-    xit("cannot add pools past the max cap", async function () {
+    it("cannot add pools past the max cap", async function () {
       const WFTM_ID = 2;
       const WFTM = "0x21be370d5312f44cb42ce377bc9b8a0cef1a4c83";
 
@@ -495,7 +495,7 @@ describe("Vaults", function () {
       // Pool 16 is reverted
       await expect(strategy.addUsedPool(WFTM_ID, [WFTM, WFTM])).to.be.reverted;
     });
-    it("should include xBoo gains in yield calculation", async function () {
+    xit("should include xBoo gains in yield calculation", async function () {
       const deposit = ethers.utils.parseEther("1");
       const xBoodeposit1 = ethers.utils.parseEther("10");
       const xBoodeposit2 = ethers.utils.parseEther("100");
