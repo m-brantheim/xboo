@@ -8,6 +8,8 @@ import "./interfaces/IUniswapRouterETH.sol";
 import "./interfaces/IPaymentRouter.sol";
 import "./libraries/SafeERC20.sol";
 
+import "hardhat/console.sol";
+
 pragma solidity 0.8.9;
 
 /**
@@ -18,6 +20,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     using SafeERC20 for IERC20;
     using SafeERC20 for IBooMirrorWorld;
     using SafeMath for uint256;
+    using SafeMath for int256;
 
     /**
      * @dev Tokens Used:
@@ -56,6 +59,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      * {hasAllocatedToPool} - If a given pool id has been deposited into already for a harvest cycle
      * {WFTM_POOL_ID} - Id for the wftm pool to use as default pool before pool selection
      * {maxPoolDilutionFactor} - The factor that determines what % of a pools total TVL can be deposited (to avoid dilution)
+     * {netDepositSinceLastHarvest} - The net balance of deposit and withdraws in {stakingToken} (can be positive or negative) since the last harvest
      */
     uint256 public currentPoolId = WFTM_POOL_ID;
     uint256[] public currentlyUsedPools;
@@ -64,6 +68,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     uint256 private constant WFTM_POOL_ID = 2;
     uint256 public maxPoolDilutionFactor = 5;
     uint256 public maxNrOfPools = 15;
+    int256 public netDepositSinceLastHarvest = 0;
 
     /**
      * @dev Variables for pool selection
@@ -98,6 +103,9 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      */
     function deposit() public whenNotPaused {
         uint256 stakingTokenBalance = stakingToken.balanceOf(address(this));
+        netDepositSinceLastHarvest =
+            netDepositSinceLastHarvest +
+            int256(stakingTokenBalance);
 
         if (stakingTokenBalance != 0) {
             xToken.enter(stakingTokenBalance);
@@ -125,6 +133,10 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      */
     function withdraw(uint256 _amount) external {
         require(msg.sender == vault, "!vault");
+
+        netDepositSinceLastHarvest =
+            netDepositSinceLastHarvest -
+            int256(_amount);
 
         uint256 stakingTokenBalance = stakingToken.balanceOf(address(this));
 
@@ -218,6 +230,51 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         }
         totalPoolBalance = total;
         return true;
+    }
+
+    /**
+     * @dev harvest() function that takes care of logging. Subcontracts should
+     *      override _harvestCore() and implement their specific logic in it.
+     */
+    function harvest() external override whenNotPaused {
+        uint256 startingTvl = balanceOf();
+
+        _harvestCore();
+
+        if (
+            harvestLog.length == 0 ||
+            harvestLog[harvestLog.length - 1].timestamp.add(
+                harvestLogCadence
+            ) <=
+            block.timestamp
+        ) {
+            int256 tvlDifferenceSinceLastHarvest = netDepositSinceLastHarvest;
+            if (harvestLog.length != 0) {
+                tvlDifferenceSinceLastHarvest = int256(
+                    startingTvl - harvestLog[harvestLog.length - 1].tvl
+                );
+            }
+            uint256 xTokenYield = uint256(
+                tvlDifferenceSinceLastHarvest - netDepositSinceLastHarvest
+            );
+            console.log("tvlDifferenceSinceLastHarvest: ");
+            console.logInt(tvlDifferenceSinceLastHarvest);
+            console.log("netDepositSinceLastHarvest: ");
+            console.logInt(netDepositSinceLastHarvest);
+            console.log("xTokenYield: ", xTokenYield);
+            netDepositSinceLastHarvest = 0;
+            harvestLog.push(
+                Harvest({
+                    timestamp: block.timestamp,
+                    profit: balanceOf() - startingTvl + xTokenYield,
+                    tvl: startingTvl,
+                    timeSinceLastHarvest: block.timestamp - lastHarvestTimestamp
+                })
+            );
+        }
+
+        lastHarvestTimestamp = block.timestamp;
+        emit StratHarvest(msg.sender);
     }
 
     /**

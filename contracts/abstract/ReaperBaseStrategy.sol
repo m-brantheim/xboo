@@ -103,7 +103,7 @@ abstract contract ReaperBaseStrategy is AccessControlEnumerable, Pausable {
      * @dev harvest() function that takes care of logging. Subcontracts should
      *      override _harvestCore() and implement their specific logic in it.
      */
-    function harvest() external whenNotPaused {
+    function harvest() external virtual whenNotPaused {
         uint256 startingTvl = balanceOf();
 
         _harvestCore();
