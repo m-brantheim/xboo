@@ -8,8 +8,6 @@ import "./interfaces/IUniswapRouterETH.sol";
 import "./interfaces/IPaymentRouter.sol";
 import "./libraries/SafeERC20.sol";
 
-import "hardhat/console.sol";
-
 pragma solidity 0.8.9;
 
 /**
@@ -57,15 +55,13 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      * {currentlyUsedPools} - A list of all pool ids currently being used by the strategy
      * {poolYield} - The estimated yield in wftm for each pool over the next 1 day
      * {hasAllocatedToPool} - If a given pool id has been deposited into already for a harvest cycle
-     * {WFTM_POOL_ID} - Id for the wftm pool to use as default pool before pool selection
      * {maxPoolDilutionFactor} - The factor that determines what % of a pools total TVL can be deposited (to avoid dilution)
      * {netDepositSinceLastHarvest} - The net balance of deposit and withdraws in {stakingToken} (can be positive or negative) since the last harvest
      */
-    uint256 public currentPoolId = WFTM_POOL_ID;
+    uint256 public currentPoolId = 0;
     uint256[] public currentlyUsedPools;
     mapping(uint256 => uint256) public poolYield;
     mapping(uint256 => bool) public hasAllocatedToPool;
-    uint256 private constant WFTM_POOL_ID = 2;
     uint256 public maxPoolDilutionFactor = 5;
     uint256 public maxNrOfPools = 15;
     int256 public netDepositSinceLastHarvest = 0;
@@ -110,6 +106,10 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         if (stakingTokenBalance != 0) {
             xToken.enter(stakingTokenBalance);
             uint256 xTokenBalance = xToken.balanceOf(address(this));
+            if (currentPoolId == 0) {
+                // Default to the first pool before the first harvest
+                currentPoolId = currentlyUsedPools[0];
+            }
             _aceLabDeposit(currentPoolId, xTokenBalance);
         }
     }
@@ -257,11 +257,6 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
             uint256 xTokenYield = uint256(
                 tvlDifferenceSinceLastHarvest - netDepositSinceLastHarvest
             );
-            console.log("tvlDifferenceSinceLastHarvest: ");
-            console.logInt(tvlDifferenceSinceLastHarvest);
-            console.log("netDepositSinceLastHarvest: ");
-            console.logInt(netDepositSinceLastHarvest);
-            console.log("xTokenYield: ", xTokenYield);
             netDepositSinceLastHarvest = 0;
             harvestLog.push(
                 Harvest({
@@ -294,7 +289,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
 
     /**
      * @dev Returns the approx amount of profit from harvesting.
-     *      Profit is denominated in WFTM, and takes fees into account.
+     *      Profit is denominated in wftm, and takes fees into account.
      */
     function estimateHarvest()
         external
@@ -483,6 +478,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      */
     function _rebalance() internal {
         uint256 xTokenBalance = xToken.balanceOf(address(this));
+        uint256 nrOfDeposits = 0;
         while (xTokenBalance != 0) {
             uint256 bestYield = 0;
             uint256 bestYieldPoolId = currentlyUsedPools[0];
@@ -506,9 +502,9 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
             IAceLab.PoolInfo memory poolInfo = IAceLab(aceLab).poolInfo(
                 bestYieldPoolId
             );
-            bool isNotWFTM = address(poolInfo.RewardToken) != wftm;
+            bool isLastPool = currentlyUsedPools.length.sub(nrOfDeposits) == 1;
             if (
-                isNotWFTM &&
+                !isLastPool &&
                 poolDepositAmount >
                 (poolInfo.xBooStakedAmount.div(maxPoolDilutionFactor))
             ) {
@@ -517,6 +513,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
                 );
             }
             hasAllocatedToPool[bestYieldPoolId] = true;
+            nrOfDeposits = nrOfDeposits.add(1);
             _aceLabDeposit(bestYieldPoolId, poolDepositAmount);
             xTokenBalance = xToken.balanceOf(address(this));
             currentPoolId = bestYieldPoolId;
@@ -735,7 +732,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         currentlyUsedPools[_poolIndex] = lastPoolId;
         currentlyUsedPools.pop();
 
-        if (currentPoolId == poolId || poolId == WFTM_POOL_ID) {
+        if (currentPoolId == poolId) {
             currentPoolId = currentlyUsedPools[0];
         }
         _aceLabDeposit(currentPoolId, balance);
