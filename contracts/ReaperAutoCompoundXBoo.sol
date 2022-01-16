@@ -56,6 +56,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      * {poolYield} - The estimated yield in wftm for each pool over the next 1 day
      * {hasAllocatedToPool} - If a given pool id has been deposited into already for a harvest cycle
      * {maxPoolDilutionFactor} - The factor that determines what % of a pools total TVL can be deposited (to avoid dilution)
+     * {maxNrOfPools} - The maximum amount of pools the strategy can use
      * {netDepositSinceLastHarvest} - The net balance of deposit and withdraws in {stakingToken} (can be positive or negative) since the last harvest
      */
     uint256 public currentPoolId = 0;

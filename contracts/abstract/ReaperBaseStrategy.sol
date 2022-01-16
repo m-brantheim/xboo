@@ -20,7 +20,7 @@ abstract contract ReaperBaseStrategy is AccessControlEnumerable, Pausable {
     }
 
     Harvest[] public harvestLog;
-    uint256 public harvestLogCadence = 12 hours;
+    uint256 public harvestLogCadence = 10 minutes;
     uint256 public lastHarvestTimestamp;
 
     /**
@@ -43,7 +43,7 @@ abstract contract ReaperBaseStrategy is AccessControlEnumerable, Pausable {
 
     /**
      * Fee related constants:
-     * {MAX_FEE} - Maximum fee allowed by the strategy. Hard-capped at 5%.
+     * {MAX_FEE} - Maximum fee allowed by the strategy. Hard-capped at 10%.
      * {STRATEGIST_MAX_FEE} - Maximum strategist fee allowed by the strategy (as % of treasury fee).
      *                        Hard-capped at 50%
      */
@@ -52,17 +52,17 @@ abstract contract ReaperBaseStrategy is AccessControlEnumerable, Pausable {
 
     /**
      * @dev Distribution of fees earned, expressed as % of the profit from each harvest.
-     * {totalFee} - divided by 10,000 to determine the % fee. Set to 4.5% by default and
+     * {totalFee} - divided by 10,000 to determine the % fee. Set to 7% by default and
      * lowered as necessary to provide users with the most competitive APY.
      *
-     * {callFee} - Percent of the totalFee reserved for the harvester (1000 = 10% of total fee: 0.45% by default)
-     * {treasuryFee} - Percent of the totalFee taken by maintainers of the software (9000 = 90% of total fee: 4.05% by default)
-     * {strategistFee} - Percent of the treasuryFee taken by strategist (2500 = 25% of treasury fee: 1.0125% by default)
+     * {callFee} - Percent of the totalFee reserved for the harvester (1000 = 10% of total fee)
+     * {treasuryFee} - Percent of the totalFee taken by maintainers of the software (9000 = 90% of total fee)
+     * {strategistFee} - Percent of the treasuryFee taken by strategist (2500 = 25% of treasury fee)
      *
      * {securityFee} - Fee taxed when a user withdraws funds. Taken to prevent flash deposit/harvest attacks.
      * These funds are redistributed to stakers in the pool.
      */
-    uint256 public totalFee = 450;
+    uint256 public totalFee = 700;
     uint256 public callFee = 1000;
     uint256 public treasuryFee = 9000;
     uint256 public strategistFee = 2500;
@@ -236,7 +236,7 @@ abstract contract ReaperBaseStrategy is AccessControlEnumerable, Pausable {
     }
 
     /**
-     * @dev updates the total fee, capped at 5%; only owner.
+     * @dev updates the total fee, capped at 10%; only owner.
      */
     function updateTotalFee(uint256 _totalFee)
         external

@@ -47,7 +47,7 @@ describe("Vaults", function () {
         {
           forking: {
             jsonRpcUrl: "https://rpc.ftm.tools/",
-            blockNumber: 27493022,
+            blockNumber: 28133775,
           },
         },
       ],
@@ -56,7 +56,7 @@ describe("Vaults", function () {
     //get signers
     [owner, addr1, addr2, addr3, addr4, ...addrs] = await ethers.getSigners();
     const booHolder = "0xb18bd5be9508882b3ea934838671da7fe5aa11ca";
-    const booWhaleAddress = "0x7ccf7aa75f05f811c478569f939bd325b15cd1bf";
+    const booWhaleAddress = "0xc067a81cc8f4eff5a3968a3db4bc23193d2d5a14";
     const bigBooWhaleAddress = "0xe0c15e9fe90d56472d8a43da5d3ef34ae955583c";
     const strategistAddress = "0x3b410908e71Ee04e7dE2a87f8F9003AFe6c1c7cE";
     await hre.network.provider.request({
@@ -117,7 +117,6 @@ describe("Vaults", function () {
     console.log(`treasury.address: ${treasury.address}`);
 
     const WFTM_ID = 2;
-    const FOO_ID = 3;
     const WOO_ID = 8;
     const TREEB_ID = 9;
     const FONT_ID = 10;
@@ -128,9 +127,10 @@ describe("Vaults", function () {
     const SPA_ID = 19;
     const HEC_ID = 21;
     const OOE_ID = 22;
+    const HND_ID = 23;
+    const BRUSH_ID = 24;
 
     const WFTM = "0x21be370d5312f44cb42ce377bc9b8a0cef1a4c83";
-    const FOO = "0xFbc3c04845162F067A0B6F8934383E63899c3524";
     const WOO = "0x6626c47c00F1D87902fc13EECfaC3ed06D5E8D8a";
     const TREEB = "0xc60D7067dfBc6f2caf30523a064f416A5Af52963";
     const FONT = "0xbbc4A8d076F4B1888fec42581B6fc58d242CF2D5";
@@ -141,6 +141,8 @@ describe("Vaults", function () {
     const SPA = "0x5602df4A94eB6C680190ACCFA2A475621E0ddBdc";
     const HEC = "0x5C4FDfc5233f935f20D2aDbA572F770c2E377Ab0";
     const OOE = "0x9d8F97A3C2f9f397B6D46Cbe2d39CC1D8Cf19010";
+    const HND = "0x10010078a54396F62c96dF8532dc2B4847d47ED3";
+    const BRUSH = "0x85dec8c4B2680793661bCA91a8F129607571863d";
 
     // Intermediate tokens
     const USDC = "0x04068da6c83afcfa0e13ba15a6696662335d5b75";
@@ -162,30 +164,32 @@ describe("Vaults", function () {
     const SPA_PATHS = [SPA, DAI, WFTM];
     const HEC_PATHS = [HEC, DAI, WFTM];
 
-    const tx1 = await strategy.addUsedPool(WFTM_ID, [WFTM, WFTM]);
-    const tx2 = await strategy.addUsedPool(FOO_ID, [FOO, WFTM]);
-    const tx3 = await strategy.addUsedPool(WOO_ID, [WOO, WFTM]);
-    const tx4 = await strategy.addUsedPool(TREEB_ID, [TREEB, WFTM]);
-    const tx5 = await strategy.addUsedPool(FONT_ID, [FONT, WFTM]);
-    const tx6 = await strategy.addUsedPool(LQDR_ID, [LQDR, WFTM]);
-    const tx7 = await strategy.addUsedPool(YEL_ID, [YEL, WFTM]);
-    const tx8 = await strategy.addUsedPool(TUSD_ID, TUSD_PATHS);
-    const tx9 = await strategy.addUsedPool(YOSHI_ID, [YOSHI, WFTM]);
-    const tx10 = await strategy.addUsedPool(SPA_ID, SPA_PATHS);
-    const tx11 = await strategy.addUsedPool(HEC_ID, HEC_PATHS);
-    const tx12 = await strategy.addUsedPool(OOE_ID, [OOE, WFTM]);
-    await tx1.wait();
-    await tx2.wait();
-    await tx3.wait();
-    await tx4.wait();
-    await tx5.wait();
-    await tx6.wait();
-    await tx7.wait();
-    await tx8.wait();
-    await tx9.wait();
-    await tx10.wait();
-    await tx11.wait();
+    // const tx1 = await strategy.addUsedPool(WFTM_ID, [WFTM, WFTM]);
+    // const tx2 = await strategy.addUsedPool(WOO_ID, [WOO, WFTM]);
+    // const tx3 = await strategy.addUsedPool(TREEB_ID, [TREEB, WFTM]);
+    // const tx4 = await strategy.addUsedPool(FONT_ID, [FONT, WFTM]);
+    // const tx5 = await strategy.addUsedPool(LQDR_ID, [LQDR, WFTM]);
+    // const tx6 = await strategy.addUsedPool(YEL_ID, [YEL, WFTM]);
+    // const tx7 = await strategy.addUsedPool(TUSD_ID, TUSD_PATHS);
+    // const tx8 = await strategy.addUsedPool(YOSHI_ID, [YOSHI, WFTM]);
+    // const tx9 = await strategy.addUsedPool(SPA_ID, SPA_PATHS);
+    // const tx10 = await strategy.addUsedPool(HEC_ID, HEC_PATHS);
+    // const tx11 = await strategy.addUsedPool(OOE_ID, [OOE, WFTM]);
+    const tx12 = await strategy.addUsedPool(HND_ID, [HND, WFTM]);
+    const tx13 = await strategy.addUsedPool(BRUSH_ID, [BRUSH, WFTM]);
+    // await tx1.wait();
+    // await tx2.wait();
+    // await tx3.wait();
+    // await tx4.wait();
+    // await tx5.wait();
+    // await tx6.wait();
+    // await tx7.wait();
+    // await tx8.wait();
+    // await tx9.wait();
+    // await tx10.wait();
+    // await tx11.wait();
     await tx12.wait();
+    await tx13.wait();
 
     await vault.initialize(strategy.address);
 
@@ -196,15 +200,15 @@ describe("Vaults", function () {
     //approving LP token and vault share spend
     await boo.approve(vault.address, ethers.utils.parseEther("1000000000"));
     console.log("approvals1");
-    await vault.approve(vault.address, ethers.utils.parseEther("1000000000"));
-    console.log("approvals2");
+    // await vault.approve(vault.address, ethers.utils.parseEther("1000000000"));
+    // console.log("approvals2");
     await boo
       .connect(self)
       .approve(vault.address, ethers.utils.parseEther("1000000000"));
     console.log("approvalsi");
-    await vault
-      .connect(self)
-      .approve(vault.address, ethers.utils.parseEther("1000000000"));
+    // await vault
+    //   .connect(self)
+    //   .approve(vault.address, ethers.utils.parseEther("1000000000"));
     console.log("approvals4");
     await boo
       .connect(booWhale)
@@ -338,12 +342,39 @@ describe("Vaults", function () {
         expectedBalance.sub(userBalanceAfterWithdraw) < 5;
       expect(isSmallBalanceDifference).to.equal(true);
     });
+    xit("should handle small deposit + withdraw", async function () {
+      const userBalance = await boo.balanceOf(selfAddress);
+      console.log(`userBalance: ${userBalance}`);
+      const depositAmount = ethers.BigNumber.from(
+        ethers.utils.parseEther("0.0000000000001")
+      );
+      await vault.connect(self).deposit(depositAmount);
+      console.log(
+        `await boo.balanceOf(selfAddress): ${await boo.balanceOf(selfAddress)}`
+      );
+
+      await vault.connect(self).withdraw(depositAmount);
+      console.log(
+        `await boo.balanceOf(selfAddress): ${await boo.balanceOf(selfAddress)}`
+      );
+      const newUserVaultBalance = await vault.balanceOf(selfAddress);
+      console.log(`newUserVaultBalance: ${newUserVaultBalance}`);
+      const userBalanceAfterWithdraw = await boo.balanceOf(selfAddress);
+      const securityFee = 10;
+      const percentDivisor = 10000;
+      const withdrawFee = (depositAmount * securityFee) / percentDivisor;
+      const expectedBalance = userBalance.sub(withdrawFee);
+      const isSmallBalanceDifference =
+        expectedBalance.sub(userBalanceAfterWithdraw) < 5;
+      expect(isSmallBalanceDifference).to.equal(true);
+    });
     xit("should be able to harvest", async function () {
+      await vault.connect(self).deposit(100000);
       const estimatedGas = await strategy.estimateGas.harvest();
       console.log(`estimatedGas: ${estimatedGas}`);
       await strategy.connect(self).harvest();
     });
-    xit("should provide yield", async function () {
+    it("should provide yield", async function () {
       await strategy.connect(self).harvest();
       const depositAmount = ethers.utils.parseEther(".05");
       await vault.connect(self).deposit(depositAmount);
@@ -420,29 +451,30 @@ describe("Vaults", function () {
       const vaultBalance = await vault.balance();
       const strategyBalance = await strategy.balanceOf();
       await strategy.panic();
-      const newVaultBalance = await vault.balance();
-      const newStrategyBalance = await strategy.balanceOf();
       expect(vaultBalance).to.equal(strategyBalance);
       // Accounting is not updated when panicking so newVaultBalance is 2x expected
-      //expect(newVaultBalance).to.equal(vaultBalance);
-      // It looks like the strategy still has balance because panic does not update balance
-      //expect(newStrategyBalance).to.equal(0);
+      await strategy.updateInternalAccounting();
+      const newVaultBalance = await vault.balance();
+      const newStrategyBalance = await strategy.balanceOf();
+      expect(newVaultBalance).to.equal(vaultBalance);
+      expect(newStrategyBalance).to.equal(0);
     });
     xit("should be able to retire strategy", async function () {
-      // Test needs the require statement to be commented out during the test
       const depositAmount = ethers.utils.parseEther(".05");
       await vault.connect(self).deposit(depositAmount);
       const vaultBalance = await vault.balance();
       const strategyBalance = await strategy.balanceOf();
-      await strategy.retireStrat();
+      expect(vaultBalance).to.equal(strategyBalance);
+      // Test needs the require statement to be commented out during the test
+      await expect(strategy.retireStrat()).to.not.be.reverted;
       const newVaultBalance = await vault.balance();
       const newStrategyBalance = await strategy.balanceOf();
-      // const userBalance = await vault.balanceOf(selfAddress);
-      // console.log(`userBalance: ${userBalance}`);
-      // await vault.connect(self).withdraw(userBalance);
-      expect(vaultBalance).to.equal(strategyBalance);
-      // expect(newVaultBalance).to.equal(vaultBalance);
+      expect(newVaultBalance).to.gt(vaultBalance);
       expect(newStrategyBalance).to.equal(0);
+    });
+    xit("should be able to retire strategy with no balance", async function () {
+      // Test needs the require statement to be commented out during the test
+      await expect(strategy.retireStrat()).to.not.be.reverted;
     });
     xit("should be able to estimate harvest", async function () {
       const bigWhaleDepositAmount = ethers.utils.parseEther("327171");
@@ -482,7 +514,7 @@ describe("Vaults", function () {
       await updatePools(acelab);
       await expect(strategy.updateInternalAccounting()).to.not.be.reverted;
     });
-    it("cannot add pools past the max cap", async function () {
+    xit("cannot add pools past the max cap", async function () {
       const WFTM_ID = 2;
       const WFTM = "0x21be370d5312f44cb42ce377bc9b8a0cef1a4c83";
 
