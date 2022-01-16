@@ -4,7 +4,7 @@ async function main() {
   const booAddress = "0x841FAD6EAe12c286d1Fd18d1d525DFfA75C7EFFE";
   const tokenName = "XBOO Single Stake Vault";
   const tokenSymbol = "rfXBOO";
-  const approvalDelay = 432000;
+  const approvalDelay = 86400;
   const depositFee = 0;
   const tvlCap = ethers.utils.parseEther("33");
 

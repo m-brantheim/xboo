@@ -1,5 +1,5 @@
 async function main() {
-  const strategyAddress = "0x0aD9E4D7ef01208fC1e67eD5C3136bEc11d00aaD";
+  const strategyAddress = "0x7E67Fc11902bEc8243C2dC453ffe06EB84569d44";
 
   const Strategy = await ethers.getContractFactory("ReaperAutoCompoundXBoo");
   const strategy = Strategy.attach(strategyAddress);
@@ -11,7 +11,7 @@ async function main() {
 
   // const tx1 = await strategy.addUsedPool(WFTM_ID, [WFTM, WFTM]);
   const tx2 = await strategy.addUsedPool(FOO_ID, [FOO, WFTM]);
-  await tx1.wait();
+  // await tx1.wait();
   await tx2.wait();
   console.log("Pools added to strategy");
 }

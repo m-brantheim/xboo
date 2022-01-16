@@ -1,5 +1,5 @@
 async function main() {
-  const vaultAddress = "0x0F5A4F4B82e6A717869Df5D08DEc600CE7B311b6";
+  const vaultAddress = "0x65bbD82baF32aAF96d82081b2eB332f8A76F5058";
 
   const Strategy = await ethers.getContractFactory("ReaperAutoCompoundXBoo");
   const treasuryAddress = "0x0e7c5313E9BB80b654734d9b7aB1FB01468deE3b";
@@ -8,12 +8,11 @@ async function main() {
   const strategist2 = "0x81876677843D00a7D792E1617459aC2E93202576";
   const strategist3 = "0x1A20D7A31e5B3Bc5f02c8A146EF6f394502a10c4";
 
-  const options = { gasPrice: 2000000000000, gasLimit: 9000000 };
+  // const options = { gasPrice: 2000000000000, gasLimit: 9000000 };
   const strategy = await Strategy.deploy(
     vaultAddress,
     [treasuryAddress, paymentRouterAddress],
-    [strategist1, strategist2, strategist3],
-    options
+    [strategist1, strategist2, strategist3]
   );
 
   await strategy.deployed();

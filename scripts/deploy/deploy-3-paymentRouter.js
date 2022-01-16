@@ -1,5 +1,5 @@
 async function main() {
-  const strategyAddress = "0x0aD9E4D7ef01208fC1e67eD5C3136bEc11d00aaD";
+  const strategyAddress = "0x7E67Fc11902bEc8243C2dC453ffe06EB84569d44";
 
   const PaymentRouter = await ethers.getContractFactory("PaymentRouter");
   const strategistFeeReceiver = "0x81876677843D00a7D792E1617459aC2E93202576";
