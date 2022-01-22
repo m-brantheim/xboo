@@ -1,5 +1,5 @@
 async function main() {
-  const vaultAddress = "0x65bbD82baF32aAF96d82081b2eB332f8A76F5058";
+  const vaultAddress = "0xFC550BAD3c14160CBA7bc05ee263b3F060149AFF";
 
   const Strategy = await ethers.getContractFactory("ReaperAutoCompoundXBoo");
   const treasuryAddress = "0x0e7c5313E9BB80b654734d9b7aB1FB01468deE3b";
