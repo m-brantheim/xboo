@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
 import "./abstract/ReaperBaseStrategy.sol";
-import "./interfaces/IERC20.sol";
 import "./interfaces/IAceLab.sol";
 import "./interfaces/IBooMirrorWorld.sol";
 import "./interfaces/IUniswapRouterETH.sol";
 import "./interfaces/IPaymentRouter.sol";
-import "./libraries/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 pragma solidity 0.8.9;
 
@@ -57,7 +57,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      * {hasAllocatedToPool} - If a given pool id has been deposited into already for a harvest cycle
      * {maxPoolDilutionFactor} - The factor that determines what % of a pools total TVL can be deposited (to avoid dilution)
      * {maxNrOfPools} - The maximum amount of pools the strategy can use
-     * {netDepositSinceLastHarvest} - The net balance of deposit and withdraws in {stakingToken} (can be positive or negative) since the last harvest
+     * {netDepositSinceLastHarvestLog} - The net balance of deposit and withdraws in {stakingToken} (can be positive or negative) since the last harvest
      */
     uint256 public currentPoolId = 0;
     uint256[] public currentlyUsedPools;
@@ -65,7 +65,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     mapping(uint256 => bool) public hasAllocatedToPool;
     uint256 public maxPoolDilutionFactor = 5;
     uint256 public maxNrOfPools = 15;
-    int256 public netDepositSinceLastHarvest = 0;
+    int256 public netDepositSinceLastHarvestLog = 0;
 
     /**
      * @dev Variables for pool selection
@@ -100,8 +100,8 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      */
     function deposit() public whenNotPaused {
         uint256 stakingTokenBalance = stakingToken.balanceOf(address(this));
-        netDepositSinceLastHarvest =
-            netDepositSinceLastHarvest +
+        netDepositSinceLastHarvestLog =
+            netDepositSinceLastHarvestLog +
             int256(stakingTokenBalance);
 
         if (stakingTokenBalance != 0) {
@@ -168,8 +168,8 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
             stakingTokenBalance = _amount;
         }
 
-        netDepositSinceLastHarvest =
-            netDepositSinceLastHarvest -
+        netDepositSinceLastHarvestLog =
+            netDepositSinceLastHarvestLog -
             int256(stakingTokenBalance);
 
         uint256 withdrawFee = stakingTokenBalance.mul(securityFee).div(
@@ -249,20 +249,26 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
             ) <=
             block.timestamp
         ) {
-            int256 tvlDifferenceSinceLastHarvest = netDepositSinceLastHarvest;
+            int256 tvlDifferenceSinceLastHarvestLog = netDepositSinceLastHarvestLog;
+            int256 startingTvlInt = int256(startingTvl);
+
+            int256 balanceInt = int256(balanceOf());
             if (harvestLog.length != 0) {
-                tvlDifferenceSinceLastHarvest = int256(
-                    startingTvl - harvestLog[harvestLog.length - 1].tvl
+                int256 previousHarvestLogTVL = int256(
+                    harvestLog[harvestLog.length - 1].tvl
                 );
+                tvlDifferenceSinceLastHarvestLog =
+                    startingTvlInt -
+                    previousHarvestLogTVL;
             }
-            uint256 xTokenYield = uint256(
-                tvlDifferenceSinceLastHarvest - netDepositSinceLastHarvest
-            );
-            netDepositSinceLastHarvest = 0;
+            int256 xTokenYield = tvlDifferenceSinceLastHarvestLog -
+                netDepositSinceLastHarvestLog;
+
+            netDepositSinceLastHarvestLog = 0;
             harvestLog.push(
                 Harvest({
                     timestamp: block.timestamp,
-                    profit: balanceOf() - startingTvl + xTokenYield,
+                    profit: balanceInt - startingTvlInt + xTokenYield,
                     tvl: startingTvl,
                     timeSinceLastHarvest: block.timestamp - lastHarvestTimestamp
                 })

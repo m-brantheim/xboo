@@ -164,30 +164,30 @@ describe("Vaults", function () {
     const SPA_PATHS = [SPA, DAI, WFTM];
     const HEC_PATHS = [HEC, DAI, WFTM];
 
-    // const tx1 = await strategy.addUsedPool(WFTM_ID, [WFTM, WFTM]);
-    // const tx2 = await strategy.addUsedPool(WOO_ID, [WOO, WFTM]);
-    // const tx3 = await strategy.addUsedPool(TREEB_ID, [TREEB, WFTM]);
-    // const tx4 = await strategy.addUsedPool(FONT_ID, [FONT, WFTM]);
-    // const tx5 = await strategy.addUsedPool(LQDR_ID, [LQDR, WFTM]);
-    // const tx6 = await strategy.addUsedPool(YEL_ID, [YEL, WFTM]);
-    // const tx7 = await strategy.addUsedPool(TUSD_ID, TUSD_PATHS);
-    // const tx8 = await strategy.addUsedPool(YOSHI_ID, [YOSHI, WFTM]);
-    // const tx9 = await strategy.addUsedPool(SPA_ID, SPA_PATHS);
-    // const tx10 = await strategy.addUsedPool(HEC_ID, HEC_PATHS);
-    // const tx11 = await strategy.addUsedPool(OOE_ID, [OOE, WFTM]);
+    const tx1 = await strategy.addUsedPool(WFTM_ID, [WFTM, WFTM]);
+    const tx2 = await strategy.addUsedPool(WOO_ID, [WOO, WFTM]);
+    const tx3 = await strategy.addUsedPool(TREEB_ID, [TREEB, WFTM]);
+    const tx4 = await strategy.addUsedPool(FONT_ID, [FONT, WFTM]);
+    const tx5 = await strategy.addUsedPool(LQDR_ID, [LQDR, WFTM]);
+    const tx6 = await strategy.addUsedPool(YEL_ID, [YEL, WFTM]);
+    const tx7 = await strategy.addUsedPool(TUSD_ID, TUSD_PATHS);
+    const tx8 = await strategy.addUsedPool(YOSHI_ID, [YOSHI, WFTM]);
+    const tx9 = await strategy.addUsedPool(SPA_ID, SPA_PATHS);
+    const tx10 = await strategy.addUsedPool(HEC_ID, HEC_PATHS);
+    const tx11 = await strategy.addUsedPool(OOE_ID, [OOE, WFTM]);
     const tx12 = await strategy.addUsedPool(HND_ID, [HND, WFTM]);
     const tx13 = await strategy.addUsedPool(BRUSH_ID, [BRUSH, WFTM]);
-    // await tx1.wait();
-    // await tx2.wait();
-    // await tx3.wait();
-    // await tx4.wait();
-    // await tx5.wait();
-    // await tx6.wait();
-    // await tx7.wait();
-    // await tx8.wait();
-    // await tx9.wait();
-    // await tx10.wait();
-    // await tx11.wait();
+    await tx1.wait();
+    await tx2.wait();
+    await tx3.wait();
+    await tx4.wait();
+    await tx5.wait();
+    await tx6.wait();
+    await tx7.wait();
+    await tx8.wait();
+    await tx9.wait();
+    await tx10.wait();
+    await tx11.wait();
     await tx12.wait();
     await tx13.wait();
 
@@ -374,7 +374,7 @@ describe("Vaults", function () {
       console.log(`estimatedGas: ${estimatedGas}`);
       await strategy.connect(self).harvest();
     });
-    it("should provide yield", async function () {
+    xit("should provide yield", async function () {
       await strategy.connect(self).harvest();
       const depositAmount = ethers.utils.parseEther(".05");
       await vault.connect(self).deposit(depositAmount);
@@ -414,7 +414,7 @@ describe("Vaults", function () {
       await strategy.connect(self).harvest();
 
       const treebPoolId = 9;
-      const treebIndex = 3;
+      const treebIndex = 2;
       const treebPoolBalance = await strategy.poolxTokenBalance(treebPoolId);
       console.log(`treebPoolBalance: ${treebPoolBalance}`);
       const vaultBalance = await vault.balance();
@@ -515,19 +515,24 @@ describe("Vaults", function () {
       await expect(strategy.updateInternalAccounting()).to.not.be.reverted;
     });
     xit("cannot add pools past the max cap", async function () {
-      const WFTM_ID = 2;
+      const TFTM_ID = 0;
       const WFTM = "0x21be370d5312f44cb42ce377bc9b8a0cef1a4c83";
 
-      await expect(strategy.addUsedPool(WFTM_ID, [WFTM, WFTM])).to.not.be
-        .reverted;
-      await expect(strategy.addUsedPool(WFTM_ID, [WFTM, WFTM])).to.not.be
-        .reverted;
-      await expect(strategy.addUsedPool(WFTM_ID, [WFTM, WFTM])).to.not.be
-        .reverted;
-      // Pool 16 is reverted
-      await expect(strategy.addUsedPool(WFTM_ID, [WFTM, WFTM])).to.be.reverted;
+      const maxCap = 15;
+      const nrOfPoolsAdded = 14;
+      for (let index = nrOfPoolsAdded - 1; index < maxCap + 1; index++) {
+        console.log(index);
+        if (index < maxCap) {
+          await expect(strategy.addUsedPool(TFTM_ID, [WFTM, WFTM])).to.not.be
+            .reverted;
+        } else {
+          await expect(strategy.addUsedPool(TFTM_ID, [WFTM, WFTM])).to.be
+            .reverted;
+          console.log("reverted");
+        }
+      }
     });
-    xit("should include xBoo gains in yield calculation", async function () {
+    it("should include xBoo gains in yield calculation", async function () {
       const deposit = ethers.utils.parseEther("1");
       const xBoodeposit1 = ethers.utils.parseEther("10");
       const xBoodeposit2 = ethers.utils.parseEther("100");
@@ -573,6 +578,63 @@ describe("Vaults", function () {
       await strategy.harvest();
       apr = await strategy.averageAPRAcrossLastNHarvests(6);
       console.log(`apr: ${apr}`);
+    });
+    it("should correctly calculate APR even if harvests are more frequent than log cadence", async function () {
+      const deposit = ethers.utils.parseEther("1");
+      const xBoodeposit = ethers.utils.parseEther("100");
+      await vault.connect(bigBooWhale).deposit(deposit);
+      await strategy.harvest();
+      const minute = 60;
+      const hour = 60 * minute;
+      await strategy.updateHarvestLogCadence(6 * hour);
+      await moveTimeForward(6 * hour);
+      await boo.connect(bigBooWhale).transfer(xBooAddress, xBoodeposit);
+      const [xBooProfit1] = await strategy.estimateHarvest();
+      console.log(`xBooProfit1: ${xBooProfit1}`);
+      await strategy.harvest();
+      await moveTimeForward(1 * hour);
+      await boo.connect(bigBooWhale).transfer(xBooAddress, xBoodeposit);
+      const [xBooProfit2] = await strategy.estimateHarvest();
+      console.log(`xBooProfit2: ${xBooProfit2}`);
+      let apr = await strategy.averageAPRAcrossLastNHarvests(6);
+      console.log(`apr: ${apr}`);
+      await strategy.harvest();
+      await moveTimeForward(1 * hour);
+      await boo.connect(bigBooWhale).transfer(xBooAddress, xBoodeposit);
+      const [xBooProfit3] = await strategy.estimateHarvest();
+      console.log(`xBooProfit3: ${xBooProfit3}`);
+      apr = await strategy.averageAPRAcrossLastNHarvests(6);
+      console.log(`apr: ${apr}`);
+      await strategy.harvest();
+      await moveTimeForward(1 * hour);
+      await boo.connect(bigBooWhale).transfer(xBooAddress, xBoodeposit);
+      const [xBooProfit4] = await strategy.estimateHarvest();
+      console.log(`xBooProfit4: ${xBooProfit4}`);
+      apr = await strategy.averageAPRAcrossLastNHarvests(6);
+      console.log(`apr: ${apr}`);
+      await strategy.harvest();
+      await moveTimeForward(8 * hour);
+      await boo.connect(bigBooWhale).transfer(xBooAddress, xBoodeposit);
+      const [xBooProfit5] = await strategy.estimateHarvest();
+      console.log(`xBooProfit5: ${xBooProfit5}`);
+      apr = await strategy.averageAPRAcrossLastNHarvests(6);
+      console.log(`apr: ${apr}`);
+      await strategy.harvest();
+      apr = await strategy.averageAPRAcrossLastNHarvests(6);
+      console.log(`apr: ${apr}`);
+    });
+    it("should handle tvl drop between harvests", async function () {
+      const deposit = ethers.utils.parseEther("100000");
+      await vault.connect(bigBooWhale).deposit(deposit);
+      await strategy.harvest();
+      const minute = 60;
+      const hour = 60 * minute;
+      await moveTimeForward(13 * hour);
+      await strategy.harvest();
+
+      await moveTimeForward(13 * hour);
+      await vault.connect(bigBooWhale).withdraw(deposit.div(2));
+      await strategy.harvest();
     });
   });
 });
