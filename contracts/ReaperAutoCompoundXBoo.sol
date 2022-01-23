@@ -100,9 +100,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      */
     function deposit() public whenNotPaused {
         uint256 stakingTokenBalance = stakingToken.balanceOf(address(this));
-        netDepositSinceLastHarvestLog =
-            netDepositSinceLastHarvestLog +
-            int256(stakingTokenBalance);
+        netDepositSinceLastHarvestLog += int256(stakingTokenBalance);
 
         if (stakingTokenBalance != 0) {
             xToken.enter(stakingTokenBalance);
@@ -168,9 +166,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
             stakingTokenBalance = _amount;
         }
 
-        netDepositSinceLastHarvestLog =
-            netDepositSinceLastHarvestLog -
-            int256(stakingTokenBalance);
+        netDepositSinceLastHarvestLog -= int256(stakingTokenBalance);
 
         uint256 withdrawFee = stakingTokenBalance.mul(securityFee).div(
             PERCENT_DIVISOR
@@ -250,25 +246,35 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
             block.timestamp
         ) {
             int256 tvlDifferenceSinceLastHarvestLog = netDepositSinceLastHarvestLog;
-            int256 startingTvlInt = int256(startingTvl);
-
-            int256 balanceInt = int256(balanceOf());
             if (harvestLog.length != 0) {
-                int256 previousHarvestLogTVL = int256(
-                    harvestLog[harvestLog.length - 1].tvl
-                );
-                tvlDifferenceSinceLastHarvestLog =
-                    startingTvlInt -
-                    previousHarvestLogTVL;
+                if (harvestLog[harvestLog.length - 1].tvl > startingTvl) {
+                    tvlDifferenceSinceLastHarvestLog = -int256(
+                        harvestLog[harvestLog.length - 1].tvl - startingTvl
+                    );
+                } else {
+                    tvlDifferenceSinceLastHarvestLog = int256(
+                        startingTvl - harvestLog[harvestLog.length - 1].tvl
+                    );
+                }
             }
+
             int256 xTokenYield = tvlDifferenceSinceLastHarvestLog -
                 netDepositSinceLastHarvestLog;
+
+            uint256 endingTvl = balanceOf();
+            int256 profitWithoutXTokenYield;
+
+            if (endingTvl < startingTvl) {
+                profitWithoutXTokenYield = -int256(startingTvl - endingTvl);
+            } else {
+                profitWithoutXTokenYield = int256(endingTvl - startingTvl);
+            }
 
             netDepositSinceLastHarvestLog = 0;
             harvestLog.push(
                 Harvest({
                     timestamp: block.timestamp,
-                    profit: balanceInt - startingTvlInt + xTokenYield,
+                    profit: profitWithoutXTokenYield + xTokenYield,
                     tvl: startingTvl,
                     timeSinceLastHarvest: block.timestamp - lastHarvestTimestamp
                 })
