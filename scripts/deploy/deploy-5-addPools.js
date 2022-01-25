@@ -1,5 +1,5 @@
 async function main() {
-  const strategyAddress = "0xe3D115671cD4100dbD018aeE78C19CFa18055476";
+  const strategyAddress = "0xB62100d94436f53a87516f1aa3Cf42f8A96Ae049";
 
   const Strategy = await ethers.getContractFactory("ReaperAutoCompoundXBoo");
   const strategy = Strategy.attach(strategyAddress);
