@@ -316,26 +316,28 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
                 poolId,
                 address(this)
             );
-            if (pendingReward == 0) {
+
+            uint256 freeRewards = IERC20(poolRewardToWftmPaths[poolId][0])
+                .balanceOf(address(this));
+            uint256 totalRewards = pendingReward + freeRewards;
+
+            if (totalRewards == 0) {
                 continue;
             }
 
             if (poolRewardToWftmPaths[poolId][0] == wftm) {
-                profit = profit.add(pendingReward);
+                profit += totalRewards;
             } else {
                 uint256[] memory amountOutMins = IUniswapRouterETH(uniRouter)
-                    .getAmountsOut(
-                        pendingReward,
-                        poolRewardToWftmPaths[poolId]
-                    );
-                profit = profit.add(amountOutMins[1]);
+                    .getAmountsOut(totalRewards, poolRewardToWftmPaths[poolId]);
+                profit += amountOutMins[1];
             }
         }
 
         // // take out fees from profit
-        uint256 wftmFee = profit.mul(totalFee).div(PERCENT_DIVISOR);
-        callFeeToUser = wftmFee.mul(callFee).div(PERCENT_DIVISOR);
-        profit = profit.sub(wftmFee);
+        uint256 wftmFee = (profit * totalFee) / PERCENT_DIVISOR;
+        callFeeToUser = (wftmFee * callFee) / PERCENT_DIVISOR;
+        profit -= wftmFee;
     }
 
     /**

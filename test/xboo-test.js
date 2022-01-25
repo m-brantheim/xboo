@@ -491,6 +491,22 @@ describe("Vaults", function () {
       expect(hasProfit).to.equal(true);
       expect(hasCallFee).to.equal(true);
     });
+    it("should include free rewards in estimate harvest", async function () {
+      const bigWhaleDepositAmount = ethers.utils.parseEther("327171");
+      await vault.connect(bigBooWhale).deposit(bigWhaleDepositAmount);
+      await strategy.harvest();
+      const minute = 60;
+      const hour = 60 * minute;
+      const day = 24 * hour;
+      await moveTimeForward(10 * day);
+      await updatePools(acelab);
+      await vault.connect(bigBooWhale).withdrawAll();
+      const [profit, callFeeToUser] = await strategy.estimateHarvest();
+      const hasProfit = profit.gt(0);
+      const hasCallFee = callFeeToUser.gt(0);
+      expect(hasProfit).to.equal(true);
+      expect(hasCallFee).to.equal(true);
+    });
     xit("should be able to check internal accounting", async function () {
       const bigWhaleDepositAmount = ethers.utils.parseEther("327171");
       await vault.connect(bigBooWhale).deposit(bigWhaleDepositAmount);
@@ -532,7 +548,7 @@ describe("Vaults", function () {
         }
       }
     });
-    it("should include xBoo gains in yield calculation", async function () {
+    xit("should include xBoo gains in yield calculation", async function () {
       const deposit = ethers.utils.parseEther("1");
       const xBoodeposit1 = ethers.utils.parseEther("10");
       const xBoodeposit2 = ethers.utils.parseEther("100");
@@ -579,7 +595,7 @@ describe("Vaults", function () {
       apr = await strategy.averageAPRAcrossLastNHarvests(6);
       console.log(`apr: ${apr}`);
     });
-    it("should correctly calculate APR even if harvests are more frequent than log cadence", async function () {
+    xit("should correctly calculate APR even if harvests are more frequent than log cadence", async function () {
       const deposit = ethers.utils.parseEther("1");
       const xBoodeposit = ethers.utils.parseEther("100");
       await vault.connect(bigBooWhale).deposit(deposit);
@@ -623,7 +639,7 @@ describe("Vaults", function () {
       apr = await strategy.averageAPRAcrossLastNHarvests(6);
       console.log(`apr: ${apr}`);
     });
-    it("should handle tvl drop between harvests", async function () {
+    xit("should handle tvl drop between harvests", async function () {
       const deposit = ethers.utils.parseEther("100000");
       await vault.connect(bigBooWhale).deposit(deposit);
       await strategy.harvest();
