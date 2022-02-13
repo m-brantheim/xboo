@@ -38,3 +38,5 @@ Not a requirement but would be nice to check prices for pool allocation and sell
 
 Look in to:
 https://twitter.com/FantomFDN/status/1471480699542818817
+
+Eeeeeh
