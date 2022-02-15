@@ -166,12 +166,14 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
             stakingTokenBalance = _amount;
         }
 
-        netDepositSinceLastHarvestLog -= int256(stakingTokenBalance);
-
         uint256 withdrawFee = stakingTokenBalance.mul(securityFee).div(
             PERCENT_DIVISOR
         );
-        stakingToken.safeTransfer(vault, stakingTokenBalance.sub(withdrawFee));
+        uint256 withdrawAmount = stakingTokenBalance.sub(withdrawFee);
+
+        netDepositSinceLastHarvestLog -= int256(withdrawAmount);
+
+        stakingToken.safeTransfer(vault, withdrawAmount);
     }
 
     /**
