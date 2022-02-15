@@ -228,7 +228,7 @@ describe("Vaults", function () {
   });
 
   describe("Deploying the vault and strategy", function () {
-    xit("should initiate vault with a 0 balance", async function () {
+    it("should initiate vault with a 0 balance", async function () {
       console.log(1);
       const totalBalance = await vault.balance();
       console.log(2);
@@ -244,7 +244,7 @@ describe("Vaults", function () {
     });
   });
   describe("Vault Tests", function () {
-    xit("should allow deposits and account for them correctly", async function () {
+    it("should allow deposits and account for them correctly", async function () {
       const userBalance = await boo.balanceOf(selfAddress);
       console.log(1);
       console.log(`userBalance: ${userBalance}`);
@@ -278,7 +278,7 @@ describe("Vaults", function () {
       expect(isSmallBalanceDifference).to.equal(true);
       expect(deductedAmount).to.equal(depositAmount);
     });
-    xit("should mint user their pool share", async function () {
+    it("should mint user their pool share", async function () {
       console.log("---------------------------------------------");
       const userBalance = await boo.balanceOf(selfAddress);
       console.log(userBalance.toString());
@@ -313,7 +313,7 @@ describe("Vaults", function () {
       // expect(ownerBooBalance).to.equal(ownerDepositAmount);
       // expect(selfBooBalance).to.equal(selfDepositAmount);
     });
-    xit("should allow withdrawals", async function () {
+    it("should allow withdrawals", async function () {
       const userBalance = await boo.balanceOf(selfAddress);
       console.log(`userBalance: ${userBalance}`);
       const depositAmount = ethers.BigNumber.from(ethers.utils.parseEther("1"));
@@ -342,7 +342,7 @@ describe("Vaults", function () {
         expectedBalance.sub(userBalanceAfterWithdraw) < 5;
       expect(isSmallBalanceDifference).to.equal(true);
     });
-    xit("should handle small deposit + withdraw", async function () {
+    it("should handle small deposit + withdraw", async function () {
       const userBalance = await boo.balanceOf(selfAddress);
       console.log(`userBalance: ${userBalance}`);
       const depositAmount = ethers.BigNumber.from(
@@ -368,13 +368,13 @@ describe("Vaults", function () {
         expectedBalance.sub(userBalanceAfterWithdraw) < 5;
       expect(isSmallBalanceDifference).to.equal(true);
     });
-    xit("should be able to harvest", async function () {
+    it("should be able to harvest", async function () {
       await vault.connect(self).deposit(100000);
       const estimatedGas = await strategy.estimateGas.harvest();
       console.log(`estimatedGas: ${estimatedGas}`);
       await strategy.connect(self).harvest();
     });
-    xit("should provide yield", async function () {
+    it("should provide yield", async function () {
       await strategy.connect(self).harvest();
       const depositAmount = ethers.utils.parseEther(".05");
       await vault.connect(self).deposit(depositAmount);
@@ -407,7 +407,7 @@ describe("Vaults", function () {
     });
   });
   describe("Strategy", function () {
-    xit("should be able to remove a pool", async function () {
+    it("should be able to remove a pool", async function () {
       await strategy.connect(self).harvest();
       const bigWhaleDepositAmount = ethers.utils.parseEther("327171");
       await vault.connect(bigBooWhale).deposit(bigWhaleDepositAmount);
@@ -437,7 +437,7 @@ describe("Vaults", function () {
       expect(newTreebPoolBalance).to.equal(0);
       expect(isSmallBalanceDifference).to.equal(true);
     });
-    xit("should be able to pause and unpause", async function () {
+    it("should be able to pause and unpause", async function () {
       await strategy.pause();
       const depositAmount = ethers.utils.parseEther(".05");
       await expect(vault.connect(self).deposit(depositAmount)).to.be.reverted;
@@ -445,7 +445,7 @@ describe("Vaults", function () {
       await expect(vault.connect(self).deposit(depositAmount)).to.not.be
         .reverted;
     });
-    xit("should be able to panic", async function () {
+    it("should be able to panic", async function () {
       const depositAmount = ethers.utils.parseEther(".05");
       await vault.connect(self).deposit(depositAmount);
       const vaultBalance = await vault.balance();
@@ -459,7 +459,7 @@ describe("Vaults", function () {
       expect(newVaultBalance).to.equal(vaultBalance);
       expect(newStrategyBalance).to.equal(0);
     });
-    xit("should be able to retire strategy", async function () {
+    it("should be able to retire strategy", async function () {
       const depositAmount = ethers.utils.parseEther(".05");
       await vault.connect(self).deposit(depositAmount);
       const vaultBalance = await vault.balance();
@@ -472,11 +472,11 @@ describe("Vaults", function () {
       expect(newVaultBalance).to.gt(vaultBalance);
       expect(newStrategyBalance).to.equal(0);
     });
-    xit("should be able to retire strategy with no balance", async function () {
+    it("should be able to retire strategy with no balance", async function () {
       // Test needs the require statement to be commented out during the test
       await expect(strategy.retireStrat()).to.not.be.reverted;
     });
-    xit("should be able to estimate harvest", async function () {
+    it("should be able to estimate harvest", async function () {
       const bigWhaleDepositAmount = ethers.utils.parseEther("327171");
       await vault.connect(bigBooWhale).deposit(bigWhaleDepositAmount);
       await strategy.harvest();
@@ -507,7 +507,7 @@ describe("Vaults", function () {
       expect(hasProfit).to.equal(true);
       expect(hasCallFee).to.equal(true);
     });
-    xit("should be able to check internal accounting", async function () {
+    it("should be able to check internal accounting", async function () {
       const bigWhaleDepositAmount = ethers.utils.parseEther("327171");
       await vault.connect(bigBooWhale).deposit(bigWhaleDepositAmount);
       await strategy.harvest();
@@ -519,7 +519,7 @@ describe("Vaults", function () {
       const isAccurate = await strategy.isInternalAccountingAccurate();
       expect(isAccurate).to.equal(true);
     });
-    xit("should be able to update internal accounting", async function () {
+    it("should be able to update internal accounting", async function () {
       const bigWhaleDepositAmount = ethers.utils.parseEther("327171");
       await vault.connect(bigBooWhale).deposit(bigWhaleDepositAmount);
       await strategy.harvest();
@@ -530,7 +530,7 @@ describe("Vaults", function () {
       await updatePools(acelab);
       await expect(strategy.updateInternalAccounting()).to.not.be.reverted;
     });
-    xit("cannot add pools past the max cap", async function () {
+    it("cannot add pools past the max cap", async function () {
       const TFTM_ID = 0;
       const WFTM = "0x21be370d5312f44cb42ce377bc9b8a0cef1a4c83";
 
@@ -548,7 +548,7 @@ describe("Vaults", function () {
         }
       }
     });
-    xit("should include xBoo gains in yield calculation", async function () {
+    it("should include xBoo gains in yield calculation", async function () {
       const deposit = ethers.utils.parseEther("1");
       const xBoodeposit1 = ethers.utils.parseEther("10");
       const xBoodeposit2 = ethers.utils.parseEther("100");
@@ -595,7 +595,7 @@ describe("Vaults", function () {
       apr = await strategy.averageAPRAcrossLastNHarvests(6);
       console.log(`apr: ${apr}`);
     });
-    xit("should correctly calculate APR even if harvests are more frequent than log cadence", async function () {
+    it("should correctly calculate APR even if harvests are more frequent than log cadence", async function () {
       const deposit = ethers.utils.parseEther("1");
       const xBoodeposit = ethers.utils.parseEther("100");
       await vault.connect(bigBooWhale).deposit(deposit);
@@ -639,7 +639,7 @@ describe("Vaults", function () {
       apr = await strategy.averageAPRAcrossLastNHarvests(6);
       console.log(`apr: ${apr}`);
     });
-    xit("should handle tvl drop between harvests", async function () {
+    it("should handle tvl drop between harvests", async function () {
       const deposit = ethers.utils.parseEther("100000");
       await vault.connect(bigBooWhale).deposit(deposit);
       await strategy.harvest();

@@ -57,7 +57,6 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      * {hasAllocatedToPool} - If a given pool id has been deposited into already for a harvest cycle
      * {maxPoolDilutionFactor} - The factor that determines what % of a pools total TVL can be deposited (to avoid dilution)
      * {maxNrOfPools} - The maximum amount of pools the strategy can use
-     * {netDepositSinceLastHarvestLog} - The net balance of deposit and withdraws in {stakingToken} (can be positive or negative) since the last harvest
      */
     uint256 public currentPoolId = 0;
     uint256[] public currentlyUsedPools;
@@ -65,7 +64,6 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     mapping(uint256 => bool) public hasAllocatedToPool;
     uint256 public maxPoolDilutionFactor = 5;
     uint256 public maxNrOfPools = 15;
-    int256 public netDepositSinceLastHarvestLog = 0;
 
     /**
      * @dev Variables for pool selection
@@ -100,7 +98,6 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      */
     function deposit() public whenNotPaused {
         uint256 stakingTokenBalance = stakingToken.balanceOf(address(this));
-        netDepositSinceLastHarvestLog += int256(stakingTokenBalance);
 
         if (stakingTokenBalance != 0) {
             xToken.enter(stakingTokenBalance);
@@ -169,11 +166,8 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         uint256 withdrawFee = stakingTokenBalance.mul(securityFee).div(
             PERCENT_DIVISOR
         );
-        uint256 withdrawAmount = stakingTokenBalance.sub(withdrawFee);
 
-        netDepositSinceLastHarvestLog -= int256(withdrawAmount);
-
-        stakingToken.safeTransfer(vault, withdrawAmount);
+        stakingToken.safeTransfer(vault, stakingTokenBalance.sub(withdrawFee));
     }
 
     /**
@@ -229,62 +223,6 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         }
         totalPoolBalance = total;
         return true;
-    }
-
-    /**
-     * @dev harvest() function that takes care of logging. Subcontracts should
-     *      override _harvestCore() and implement their specific logic in it.
-     */
-    function harvest() external override whenNotPaused {
-        uint256 startingTvl = balanceOf();
-
-        _harvestCore();
-
-        if (
-            harvestLog.length == 0 ||
-            harvestLog[harvestLog.length - 1].timestamp.add(
-                harvestLogCadence
-            ) <=
-            block.timestamp
-        ) {
-            int256 tvlDifferenceSinceLastHarvestLog = netDepositSinceLastHarvestLog;
-            if (harvestLog.length != 0) {
-                if (harvestLog[harvestLog.length - 1].tvl > startingTvl) {
-                    tvlDifferenceSinceLastHarvestLog = -int256(
-                        harvestLog[harvestLog.length - 1].tvl - startingTvl
-                    );
-                } else {
-                    tvlDifferenceSinceLastHarvestLog = int256(
-                        startingTvl - harvestLog[harvestLog.length - 1].tvl
-                    );
-                }
-            }
-
-            int256 xTokenYield = tvlDifferenceSinceLastHarvestLog -
-                netDepositSinceLastHarvestLog;
-
-            uint256 endingTvl = balanceOf();
-            int256 profitWithoutXTokenYield;
-
-            if (endingTvl < startingTvl) {
-                profitWithoutXTokenYield = -int256(startingTvl - endingTvl);
-            } else {
-                profitWithoutXTokenYield = int256(endingTvl - startingTvl);
-            }
-
-            netDepositSinceLastHarvestLog = 0;
-            harvestLog.push(
-                Harvest({
-                    timestamp: block.timestamp,
-                    profit: profitWithoutXTokenYield + xTokenYield,
-                    tvl: startingTvl,
-                    timeSinceLastHarvest: block.timestamp - lastHarvestTimestamp
-                })
-            );
-        }
-
-        lastHarvestTimestamp = block.timestamp;
-        emit StratHarvest(msg.sender);
     }
 
     /**
