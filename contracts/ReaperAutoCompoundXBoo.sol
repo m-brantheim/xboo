@@ -74,6 +74,12 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     mapping(uint256 => uint256) public poolxTokenBalance;
 
     /**
+     * @dev Variables for pool selection
+     * {booBorrowerStrategy} - Whitelisted strategy that uses this strategy to farm
+     */
+    address public booBorrowerStrategy;
+
+    /**
      * {UpdatedStrategist} Event that is fired each time the strategist role is updated.
      */
     event UpdatedStrategist(address newStrategist);
@@ -163,11 +169,18 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
             stakingTokenBalance = _amount;
         }
 
-        uint256 withdrawFee = stakingTokenBalance.mul(securityFee).div(
-            PERCENT_DIVISOR
-        );
+        if (tx.origin == booBorrowerStrategy) {
+            stakingToken.safeTransfer(vault, stakingTokenBalance);
+        } else {
+            uint256 withdrawFee = stakingTokenBalance.mul(securityFee).div(
+                PERCENT_DIVISOR
+            );
 
-        stakingToken.safeTransfer(vault, stakingTokenBalance.sub(withdrawFee));
+            stakingToken.safeTransfer(
+                vault,
+                stakingTokenBalance.sub(withdrawFee)
+            );
+        }
     }
 
     /**
@@ -691,5 +704,10 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
             currentPoolId = currentlyUsedPools[0];
         }
         _aceLabDeposit(currentPoolId, balance);
+    }
+
+    function setBooBorrowerAddress(address _booBorrowerStrategy) external {
+        _onlyStrategistOrOwner();
+        booBorrowerStrategy = _booBorrowerStrategy;
     }
 }
