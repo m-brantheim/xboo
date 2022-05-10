@@ -56,13 +56,14 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      * {poolYield} - The estimated yield in wftm for each pool over the next 1 day
      * {hasAllocatedToPool} - If a given pool id has been deposited into already for a harvest cycle
      * {maxPoolDilutionFactor} - The factor that determines what % of a pools total TVL can be deposited (to avoid dilution)
+     * In Basis points so 10000 = 100%, can be any % of the pool to deposit in
      * {maxNrOfPools} - The maximum amount of pools the strategy can use
      */
     uint256 public currentPoolId = 0;
     uint256[] public currentlyUsedPools;
     mapping(uint256 => uint256) public poolYield;
     mapping(uint256 => bool) public hasAllocatedToPool;
-    uint256 public maxPoolDilutionFactor = 5;
+    uint256 public maxPoolDilutionFactor = 10000;
     uint256 public maxNrOfPools = 15;
 
     /**
@@ -474,10 +475,16 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
             if (
                 !isLastPool &&
                 poolDepositAmount >
-                (poolInfo.xBooStakedAmount.div(maxPoolDilutionFactor))
+                (
+                    poolInfo.xBooStakedAmount.mul(PERCENT_DIVISOR).div(
+                        maxPoolDilutionFactor
+                    )
+                )
             ) {
                 poolDepositAmount = (
-                    poolInfo.xBooStakedAmount.div(maxPoolDilutionFactor)
+                    poolInfo.xBooStakedAmount.mul(PERCENT_DIVISOR).div(
+                        maxPoolDilutionFactor
+                    )
                 );
             }
             hasAllocatedToPool[bestYieldPoolId] = true;
@@ -642,7 +649,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     }
 
     /**
-     * @dev updates the {maxPoolDilutionFactor}
+     * @dev updates the {maxPoolDilutionFactor} set in basis points so 10000 = 100%
      */
     function updateMaxPoolDilutionFactor(uint256 _maxPoolDilutionFactor)
         external
