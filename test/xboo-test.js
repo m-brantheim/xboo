@@ -47,7 +47,7 @@ describe("Vaults", function () {
         {
           forking: {
             jsonRpcUrl: "https://rpc.ftm.tools/",
-            blockNumber: 37974400,
+            blockNumber: 37987870,
           },
         },
       ],

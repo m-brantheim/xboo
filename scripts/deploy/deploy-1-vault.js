@@ -6,7 +6,8 @@ async function main() {
   const tokenSymbol = "rfXBOO";
   const approvalDelay = 86400;
   const depositFee = 0;
-  const tvlCap = ethers.utils.parseEther("2500");
+  const tvlCap = ethers.constants.MaxUint256;
+  const options = { gasPrice: 500000000000, gasLimit: 9000000 };
 
   const vault = await Vault.deploy(
     booAddress,
@@ -14,7 +15,8 @@ async function main() {
     tokenSymbol,
     approvalDelay,
     depositFee,
-    tvlCap
+    tvlCap,
+    options
   );
 
   await vault.deployed();
