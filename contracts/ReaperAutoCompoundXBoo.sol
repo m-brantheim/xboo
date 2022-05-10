@@ -75,10 +75,10 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     mapping(uint256 => uint256) public poolxTokenBalance;
 
     /**
-     * @dev Variables for pool selection
-     * {booBorrowerStrategy} - Whitelisted strategy that uses this strategy to farm
+     * @dev Fee variables
+     * {useSecurityFee} - If security fee should be applied on withdraw, controlled by the fee moderator
      */
-    address public booBorrowerStrategy;
+    bool public useSecurityFee;
 
     /**
      * {UpdatedStrategist} Event that is fired each time the strategist role is updated.
@@ -95,6 +95,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         address[] memory _strategists
     ) ReaperBaseStrategy(_vault, _feeRemitters, _strategists) {
         _giveAllowances();
+        useSecurityFee = true;
     }
 
     /**
@@ -170,9 +171,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
             stakingTokenBalance = _amount;
         }
 
-        if (tx.origin == booBorrowerStrategy) {
-            stakingToken.safeTransfer(vault, stakingTokenBalance);
-        } else {
+        if (useSecurityFee) {
             uint256 withdrawFee = stakingTokenBalance.mul(securityFee).div(
                 PERCENT_DIVISOR
             );
@@ -181,6 +180,9 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
                 vault,
                 stakingTokenBalance.sub(withdrawFee)
             );
+        } else {
+            stakingToken.safeTransfer(vault, stakingTokenBalance);
+            useSecurityFee = true;
         }
     }
 
@@ -713,8 +715,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
         _aceLabDeposit(currentPoolId, balance);
     }
 
-    function setBooBorrowerAddress(address _booBorrowerStrategy) external {
-        _onlyStrategistOrOwner();
-        booBorrowerStrategy = _booBorrowerStrategy;
+    function primeFriendlyWithdraw() external onlyRole(FRIENDLY_WITHDRAWER) {
+        useSecurityFee = false;
     }
 }

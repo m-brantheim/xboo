@@ -29,6 +29,8 @@ abstract contract ReaperBaseStrategy is
      * Reaper Roles
      */
     bytes32 public constant STRATEGIST = keccak256("STRATEGIST");
+    bytes32 public constant FRIENDLY_WITHDRAWER =
+        keccak256("FRIENDLY_WITHDRAWER");
     bytes32 public constant STRATEGIST_MULTISIG =
         keccak256("STRATEGIST_MULTISIG");
 
