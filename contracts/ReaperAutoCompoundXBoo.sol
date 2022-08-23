@@ -41,15 +41,18 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3 {
      */
     address public constant uniRouter =
         0xF491e7B69E4244ad4002BC14e878a34207E38c29;
-    address public aceLab = 0x399D73bB7c83a011cD85DF2a3CdF997ED3B3439f;
-    address public Magicats = 0x2aB5C606a5AA2352f8072B9e2E8A213033e2c4c9;
+    address public constant currentAceLab = 0x399D73bB7c83a011cD85DF2a3CdF997ED3B3439f;
+    address public constant currentMagicats = 0x2aB5C606a5AA2352f8072B9e2E8A213033e2c4c9;
+    
+    address public aceLab;
+    address public Magicats;
 
     /**
      * @dev Routes we take to swap tokens
      * {wftmToStakingTokenPaths} - Route we take to get from {wftm} into {stakingToken}.
      * {poolRewardToWftmPaths} - Routes for each pool to get from {pool reward token} into {wftm}.
      */
-    address[] public wftmToStakingTokenPaths = [wftm, address(stakingToken)];
+    address[] public wftmToStakingTokenPaths;
     mapping(uint256 => address[]) public poolRewardToWftmPaths;
 
     /**
@@ -62,19 +65,19 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3 {
      * In Basis points so 10000 = 100%, can be any % of the pool to deposit in
      * {maxNrOfPools} - The maximum amount of pools the strategy can use
      */
-    uint256 public currentPoolId = 0;
+    uint256 public currentPoolId;
     uint256[] public currentlyUsedPools;
     mapping(uint256 => uint256) public poolYield;
     mapping(uint256 => bool) public hasAllocatedToPool;
-    uint256 public maxPoolDilutionFactor = 10000;
-    uint256 public maxNrOfPools = 15;
+    uint256 public maxPoolDilutionFactor;
+    uint256 public maxNrOfPools;
 
     /**
      * @dev Variables for pool selection
      * {totalPoolBalance} - The total amount of xToken currently deposited into pools
      * {poolxTokenBalance} - The amount of xToken deposited into each pool
      */
-    uint256 public totalPoolBalance = 0;
+    uint256 public totalPoolBalance;
     mapping(uint256 => uint256) public poolxTokenBalance;
 
     /**
@@ -108,8 +111,18 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3 {
         address[] memory _multisigRoles
     ) public initializer {
         __ReaperBaseStrategy_init(_vault, _feeRemitters, _strategists, _multisigRoles);
-        _giveAllowances();
         useSecurityFee = false;
+
+        aceLab = currentAceLab;
+        Magicats = currentMagicats;
+        currentPoolId = 0;
+        maxPoolDilutionFactor = 10000;
+        maxNrOfPools = 15;
+        totalPoolBalance = 0;
+        wftmToStakingTokenPaths = [wftm, address(stakingToken)];
+
+        _giveAllowances();
+
     }
 
     /**

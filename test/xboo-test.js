@@ -46,8 +46,7 @@ describe("Vaults", function () {
       params: [
         {
           forking: {
-            jsonRpcUrl: "https://rpc.ftm.tools/",
-            blockNumber: 37987870,
+            jsonRpcUrl: "https://late-wild-fire.fantom.quiknode.pro/"
           },
         },
       ],
@@ -55,8 +54,8 @@ describe("Vaults", function () {
     console.log("providers");
     //get signers
     [owner, addr1, addr2, addr3, addr4, ...addrs] = await ethers.getSigners();
-    const booHolder = "0x7Ba7f4773fa7890BaD57879F0a1Faa0eDffB3520";
-    const booWhaleAddress = "0xF44813dDc3a9D672bD55DcC4E14d46E32fb87673";
+    const booHolder = "0xcbccad4eeee7bb58379bbf200d06ca6957efa843";
+    const booWhaleAddress = "0x19fd5bc571aae24ea806e548292d5cf759a916f0";
     const bigBooWhaleAddress = "0xf778f4d7a14a8cb73d5261f9c61970ef4e7d7842";
 
 
@@ -172,7 +171,7 @@ describe("Vaults", function () {
     const DAI = "0x8d11ec38a3eb5e956b052f67da8bdc9bef8abf3e";
 
     strategy = await hre.upgrades.deployProxy(
-      TokenImpl,
+      StrategyIMPL,
       [
         vault.address,
         [treasuryAddr, paymentSplitterAddress],
@@ -199,7 +198,7 @@ describe("Vaults", function () {
     const tx4 = await strategy.addUsedPool(SD_ID, SD_PATHS);
     const tx5 = await strategy.addUsedPool(xTarot_ID, [xTarot, WFTM]);
     const tx6 = await strategy.addUsedPool(ORBS_ID, [ORBS, WFTM]);
-    const tx7 = await strategy.addUsedPool(SINGLE_ID, [Single, WFTM]);
+    const tx7 = await strategy.addUsedPool(SINGLE_ID, [SINGLE, WFTM]);
 
     // const tx1 = await strategy.addUsedPool(WFTM_ID, [WFTM, WFTM]);
     // const tx2 = await strategy.addUsedPool(WOO_ID, [WOO, WFTM]);
@@ -220,7 +219,7 @@ describe("Vaults", function () {
     await tx5.wait();
     await tx6.wait();
     await tx7.wait();
-    await tx8.wait();
+  
 
     await vault.initialize(strategy.address);
 
