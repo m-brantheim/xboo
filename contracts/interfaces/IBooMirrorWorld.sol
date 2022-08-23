@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 
 pragma solidity 0.8.9;
 
-interface IBooMirrorWorld is IERC20 {
+interface IBooMirrorWorld is IERC20Upgradeable {
     // Locks Boo and mints xBoo
     function enter(uint256 _amount) external;
 

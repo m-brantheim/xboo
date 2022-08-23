@@ -58,7 +58,17 @@ describe("Vaults", function () {
     const booHolder = "0x7Ba7f4773fa7890BaD57879F0a1Faa0eDffB3520";
     const booWhaleAddress = "0xF44813dDc3a9D672bD55DcC4E14d46E32fb87673";
     const bigBooWhaleAddress = "0xf778f4d7a14a8cb73d5261f9c61970ef4e7d7842";
+
+
     const strategistAddress = "0x3b410908e71Ee04e7dE2a87f8F9003AFe6c1c7cE";
+    const treasuryAddr = '0x0e7c5313E9BB80b654734d9b7aB1FB01468deE3b';
+    const paymentSplitterAddress = '0x63cbd4134c2253041F370472c130e92daE4Ff174';
+
+    const superAdminAddress = '0x04C710a1E8a738CDf7cAD3a52Ba77A784C35d8CE';
+    const adminAddress = '0x539eF36C804e4D735d8cAb69e8e441c12d4B88E0';
+    const guardianAddress = '0xf20E25f2AB644C8ecBFc992a6829478a85A98F2c';
+    const maintainerAddress = '0x81876677843D00a7D792E1617459aC2E93202576';
+
     await hre.network.provider.request({
       method: "hardhat_impersonateAccount",
       params: [booHolder],
@@ -88,7 +98,7 @@ describe("Vaults", function () {
     console.log("addresses");
 
     //get artifacts
-    Strategy = await ethers.getContractFactory("ReaperAutoCompoundXBoo");
+    StrategyIMPL = await ethers.getContractFactory("ReaperAutoCompoundXBoov2");
     PaymentRouter = await ethers.getContractFactory("PaymentRouter");
     Vault = await ethers.getContractFactory("ReaperVaultv1_3");
     Treasury = await ethers.getContractFactory("ReaperTreasury");
@@ -100,7 +110,7 @@ describe("Vaults", function () {
     treasury = await Treasury.deploy();
     console.log("treasury");
     boo = await Boo.attach(booAddress);
-    const aceLabAddress = "0x2352b745561e7e6FCD03c093cE7220e3e126ace0";
+    const aceLabAddress = "0x399D73bB7c83a011cD85DF2a3CdF997ED3B3439f";
     acelab = await Acelab.attach(aceLabAddress);
     console.log("boo attached");
     vault = await Vault.deploy(
@@ -139,14 +149,13 @@ describe("Vaults", function () {
     // const HND = "0x10010078a54396F62c96dF8532dc2B4847d47ED3";
     // const BRUSH = "0x85dec8c4B2680793661bCA91a8F129607571863d";
 
-    const HEC_ID = 21;
-    const LQDR_ID = 11;
-    const GALCX_ID = 35;
-    const SD_ID = 34;
-    const LUNA_ID = 33;
-    const BEFTM_ID = 32;
-    const RING_ID = 31;
-    const SOLID_ID = 30;
+    const HEC_ID = 1;
+    const LQDR_ID = 2;
+    const SINGLE_ID = 3;
+    const xTarot_ID = 4;
+    const ORBS_ID = 5;
+    const GALCX_ID = 6;
+    const SD_ID = 7;
 
     const WFTM = "0x21be370d5312f44cb42ce377bc9b8a0cef1a4c83";
 
@@ -154,19 +163,23 @@ describe("Vaults", function () {
     const LQDR = "0x10b620b2dbAC4Faa7D7FFD71Da486f5D44cd86f9";
     const GALCX = "0x70F9fd19f857411b089977E7916c05A0fc477Ac9";
     const SD = "0x412a13C109aC30f0dB80AD3Bd1DeFd5D0A6c0Ac6";
-    const LUNA = "0x593AE1d34c8BD7587C11D539E4F42BFf242c82Af";
-    const BEFTM = "0x7381eD41F6dE418DdE5e84B55590422a57917886";
-    const RING = "0x582423C10c9e83387a96d00A69bA3D11ee47B7b5";
-    const SOLID = "0x888EF71766ca594DED1F0FA3AE64eD2941740A20";
+    const SINGLE = "0x8cc97B50Fe87f31770bcdCd6bc8603bC1558380B";
+    const xTarot = "0x74D1D2A851e339B8cB953716445Be7E8aBdf92F4";
+    const ORBS = "0x3E01B7E242D5AF8064cB9A8F9468aC0f8683617c";
 
     // Intermediate tokens
     const USDC = "0x04068da6c83afcfa0e13ba15a6696662335d5b75";
     const DAI = "0x8d11ec38a3eb5e956b052f67da8bdc9bef8abf3e";
 
-    strategy = await Strategy.deploy(
-      vault.address,
-      [treasury.address, paymentRouterAddress],
-      [strategistAddress]
+    strategy = await hre.upgrades.deployProxy(
+      TokenImpl,
+      [
+        vault.address,
+        [treasuryAddr, paymentSplitterAddress],
+        [strategistAddress],
+        [superAdminAddress, adminAddress, guardianAddress],
+      ],
+      {kind: 'uups'},
     );
     console.log("strategy");
 
@@ -179,16 +192,14 @@ describe("Vaults", function () {
     // const SPA_PATHS = [SPA, DAI, WFTM];
     const HEC_PATHS = [HEC, DAI, WFTM];
     const SD_PATHS = [SD, USDC, WFTM];
-    const RING_PATHS = [RING, USDC, WFTM];
 
     const tx1 = await strategy.addUsedPool(HEC_ID, HEC_PATHS);
     const tx2 = await strategy.addUsedPool(LQDR_ID, [LQDR, WFTM]);
     const tx3 = await strategy.addUsedPool(GALCX_ID, [GALCX, WFTM]);
     const tx4 = await strategy.addUsedPool(SD_ID, SD_PATHS);
-    const tx5 = await strategy.addUsedPool(LUNA_ID, [LUNA, WFTM]);
-    const tx6 = await strategy.addUsedPool(BEFTM_ID, [BEFTM, WFTM]);
-    const tx7 = await strategy.addUsedPool(RING_ID, RING_PATHS);
-    const tx8 = await strategy.addUsedPool(SOLID_ID, [SOLID, WFTM]);
+    const tx5 = await strategy.addUsedPool(xTarot_ID, [xTarot, WFTM]);
+    const tx6 = await strategy.addUsedPool(ORBS_ID, [ORBS, WFTM]);
+    const tx7 = await strategy.addUsedPool(SINGLE_ID, [Single, WFTM]);
 
     // const tx1 = await strategy.addUsedPool(WFTM_ID, [WFTM, WFTM]);
     // const tx2 = await strategy.addUsedPool(WOO_ID, [WOO, WFTM]);

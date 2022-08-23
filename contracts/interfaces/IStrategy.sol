@@ -13,7 +13,7 @@ interface IStrategy {
     function balanceOf() external view returns (uint256);
 
     //claims farmed tokens, distributes fees, and sells tokens to re-add to the LP & farm
-    function harvest() external;
+    function harvest() external returns (uint256 callerFee);
 
     //withdraws all tokens and sends them back to the vault
     function retireStrat() external;

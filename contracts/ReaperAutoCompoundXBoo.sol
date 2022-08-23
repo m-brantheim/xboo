@@ -6,7 +6,9 @@ import "./interfaces/IBooMirrorWorld.sol";
 import "./interfaces/IUniswapRouterETH.sol";
 import "./interfaces/IPaymentRouter.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/math/MathUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/math/SafeMathUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/math/SignedSafeMathUpgradeable.sol";
+
 
 pragma solidity 0.8.9;
 
@@ -14,10 +16,11 @@ pragma solidity 0.8.9;
  * @dev This is a strategy to stake stakingToken into xToken, and then stake xToken in different pools to collect more rewards
  * The strategy will compound the pool rewards into stakingToken which will be deposited into the strategy for more yield.
  */
-contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategy {
+contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3 {
     using SafeERC20Upgradeable for IERC20Upgradeable;
     using SafeERC20Upgradeable for IBooMirrorWorld;
-    using SafeMath for int256;
+    using SafeMathUpgradeable for uint256;
+    using SignedSafeMathUpgradeable for int256;
 
     /**
      * @dev Tokens Used:
@@ -28,8 +31,8 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategy {
     address public constant wftm = 0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83;
     IBooMirrorWorld public constant xToken =
         IBooMirrorWorld(0xa48d959AE2E88f1dAA7D5F611E01908106dE7598); // xBoo
-    IERC20 public constant stakingToken =
-        IERC20(0x841FAD6EAe12c286d1Fd18d1d525DFfA75C7EFFE); // Boo
+    IERC20Upgradeable public constant stakingToken =
+        IERC20Upgradeable(0x841FAD6EAe12c286d1Fd18d1d525DFfA75C7EFFE); // Boo
 
     /**
      * @dev Third Party Contracts:
@@ -97,11 +100,12 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategy {
         _giveAllowances();
         useSecurityFee = true;
     }*/
+    constructor(){}
     function initialize(
         address _vault,
         address[] memory _feeRemitters,
-        address[] memory _strategists
-        address[] memory _multisigRoles,
+        address[] memory _strategists,
+        address[] memory _multisigRoles
     ) public initializer {
         __ReaperBaseStrategy_init(_vault, _feeRemitters, _strategists, _multisigRoles);
         _giveAllowances();
@@ -114,7 +118,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategy {
      * It deposits {stakingToken} into xToken (BooMirrorWorld) to farm {xToken} and finally,
      * xToken is deposited into other pools to earn additional rewards
      */
-    function deposit() public whenNotPaused {
+    function _deposit() internal override whenNotPaused {
         uint256 stakingTokenBalance = stakingToken.balanceOf(address(this));
 
         if (stakingTokenBalance != 0) {
@@ -145,7 +149,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategy {
      * It withdraws {stakingToken} from the AceLab pools.
      * The available {stakingToken} minus fees is returned to the vault.
      */
-    function withdraw(uint256 _amount) external {
+    function _withdraw(uint256 _amount) internal override {
         require(msg.sender == vault, "!vault");
 
         uint256 stakingTokenBalance = stakingToken.balanceOf(address(this));
@@ -236,7 +240,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategy {
      *      the internal pool accounting with AceLab
      */
     function updateInternalAccounting() external returns (bool) {
-        _onlyStrategistOrOwner();
+        _atLeastRole(STRATEGIST);
         uint256 total = 0;
         for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
             uint256 _poolId = currentlyUsedPools[index];
@@ -258,9 +262,9 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategy {
      * 3. It swaps the {wftm} token for {stakingToken} which is deposited into {xToken}
      * 4. It distributes the xToken using a yield optimization algorithm into various pools.
      */
-    function _harvestCore() internal override {
+    function _harvestCore() internal override returns (uint256 callerFee) {
         _collectRewardsAndEstimateYield();
-        _chargeFees();
+        callerFee = _chargeFees();
         _swapWftmToStakingToken();
         _enterXBoo();
         _rebalance();
@@ -273,7 +277,6 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategy {
     function estimateHarvest()
         external
         view
-        override
         returns (uint256 profit, uint256 callFeeToUser)
     {
         for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
@@ -283,7 +286,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategy {
                 address(this)
             );
 
-            uint256 freeRewards = IERC20(poolRewardToWftmPaths[poolId][0])
+            uint256 freeRewards = IERC20Upgradeable(poolRewardToWftmPaths[poolId][0])
                 .balanceOf(address(this));
             uint256 totalRewards = pendingReward + freeRewards;
 
@@ -328,7 +331,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategy {
     function _swapRewardToWftm(uint256 _poolId) internal {
         address[] memory rewardToWftmPaths = poolRewardToWftmPaths[_poolId];
         address rewardToken = rewardToWftmPaths[0];
-        uint256 poolRewardTokenBal = IERC20(rewardToken).balanceOf(
+        uint256 poolRewardTokenBal = IERC20Upgradeable(rewardToken).balanceOf(
             address(this)
         );
         if (poolRewardTokenBal != 0 && rewardToken != wftm) {
@@ -404,8 +407,8 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategy {
      * callFeeToUser is set as a percentage of the fee,
      * as is treasuryFeeToVault
      */
-    function _chargeFees() internal {
-        uint256 wftmFee = IERC20(wftm)
+    function _chargeFees() internal returns (uint256 feeToStrategist){
+        uint256 wftmFee = IERC20Upgradeable(wftm)
             .balanceOf(address(this))
             .mul(totalFee)
             .div(PERCENT_DIVISOR);
@@ -415,15 +418,15 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategy {
             uint256 treasuryFeeToVault = wftmFee.mul(treasuryFee).div(
                 PERCENT_DIVISOR
             );
-            uint256 feeToStrategist = treasuryFeeToVault.mul(strategistFee).div(
+            feeToStrategist = treasuryFeeToVault.mul(strategistFee).div(
                 PERCENT_DIVISOR
             );
             treasuryFeeToVault = treasuryFeeToVault.sub(feeToStrategist);
 
-            IERC20(wftm).safeTransfer(msg.sender, callFeeToUser);
-            IERC20(wftm).safeTransfer(treasury, treasuryFeeToVault);
-            IERC20(wftm).safeApprove(strategistRemitter, 0);
-            IERC20(wftm).safeApprove(strategistRemitter, feeToStrategist);
+            IERC20Upgradeable(wftm).safeTransfer(msg.sender, callFeeToUser);
+            IERC20Upgradeable(wftm).safeTransfer(treasury, treasuryFeeToVault);
+            IERC20Upgradeable(wftm).safeApprove(strategistRemitter, 0);
+            IERC20Upgradeable(wftm).safeApprove(strategistRemitter, feeToStrategist);
             IPaymentRouter(strategistRemitter).routePayment(
                 wftm,
                 feeToStrategist
@@ -435,7 +438,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategy {
      * @dev Swaps all {wftm} into {stakingToken}
      */
     function _swapWftmToStakingToken() internal {
-        uint256 wftmBalance = IERC20(wftm).balanceOf(address(this));
+        uint256 wftmBalance = IERC20Upgradeable(wftm).balanceOf(address(this));
         if (wftmBalance != 0) {
             IUniswapRouterETH(uniRouter)
                 .swapExactTokensForTokensSupportingFeeOnTransferTokens(
@@ -554,7 +557,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategy {
 
         _swapWftmToStakingToken();
 
-        uint256 xTokenBalance = IERC20(xToken).balanceOf(address(this));
+        uint256 xTokenBalance = IERC20Upgradeable(xToken).balanceOf(address(this));
         IBooMirrorWorld(xToken).leave(xTokenBalance);
 
         uint256 stakingTokenBalance = stakingToken.balanceOf(address(this));
@@ -564,9 +567,8 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategy {
     /**
      * @dev Pauses deposits. Withdraws all funds from the AceLab contract, leaving rewards behind.
      */
-    function panic() public {
-        _onlyStrategistOrOwner();
-        pause();
+    function _reclaimWant() internal override {
+        _atLeastRole(STRATEGIST);
 
         for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
             uint256 poolId = currentlyUsedPools[index];
@@ -582,8 +584,8 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategy {
     /**
      * @dev Pauses the strat.
      */
-    function pause() public {
-        _onlyStrategistOrOwner();
+    function _pause() internal override {
+        _atLeastRole(STRATEGIST);
         _pause();
         _removeAllowances();
     }
@@ -591,8 +593,8 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategy {
     /**
      * @dev Unpauses the strat.
      */
-    function unpause() external {
-        _onlyStrategistOrOwner();
+    function _unpause() internal override {
+        _atLeastRole(STRATEGIST);
         _unpause();
 
         _giveAllowances();
@@ -614,8 +616,8 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategy {
         xToken.safeApprove(aceLab, 0);
         xToken.safeApprove(aceLab, type(uint256).max);
         // Give uniRouter permission to swap wftm to stakingToken
-        IERC20(wftm).safeApprove(uniRouter, 0);
-        IERC20(wftm).safeApprove(uniRouter, type(uint256).max);
+        IERC20Upgradeable(wftm).safeApprove(uniRouter, 0);
+        IERC20Upgradeable(wftm).safeApprove(uniRouter, type(uint256).max);
         _givePoolAllowances();
     }
 
@@ -631,7 +633,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategy {
         // Remove xToken contract permission to stake xToken
         xToken.safeApprove(aceLab, 0);
         // Remove uniRouter permission to swap wftm to stakingToken
-        IERC20(wftm).safeApprove(uniRouter, 0);
+        IERC20Upgradeable(wftm).safeApprove(uniRouter, 0);
         _removePoolAllowances();
     }
 
@@ -640,7 +642,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategy {
      */
     function _givePoolAllowances() internal {
         for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
-            IERC20 rewardToken = IERC20(
+            IERC20Upgradeable rewardToken = IERC20Upgradeable(
                 poolRewardToWftmPaths[currentlyUsedPools[index]][0]
             );
             rewardToken.safeApprove(uniRouter, 0);
@@ -653,7 +655,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategy {
      */
     function _removePoolAllowances() internal {
         for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
-            IERC20 rewardToken = IERC20(
+            IERC20Upgradeable rewardToken = IERC20Upgradeable(
                 poolRewardToWftmPaths[currentlyUsedPools[index]][0]
             );
             rewardToken.safeApprove(uniRouter, 0);
@@ -666,7 +668,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategy {
     function updateMaxPoolDilutionFactor(uint256 _maxPoolDilutionFactor)
         external
     {
-        _onlyStrategistOrOwner();
+        _atLeastRole(STRATEGIST);
         require(_maxPoolDilutionFactor != 0, "!=0");
         maxPoolDilutionFactor = _maxPoolDilutionFactor;
     }
@@ -688,7 +690,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategy {
         uint256 _poolId,
         address[] memory _poolRewardToWftmPath
     ) external {
-        _onlyStrategistOrOwner();
+        _atLeastRole(STRATEGIST);
         require(currentlyUsedPools.length < maxNrOfPools, "Max pools reached");
         require(
             _poolRewardToWftmPath.length >= 2 ||
@@ -701,7 +703,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategy {
 
         address poolRewardToken = _poolRewardToWftmPath[0];
         if (poolRewardToken != wftm) {
-            IERC20(poolRewardToken).safeApprove(uniRouter, type(uint256).max);
+            IERC20Upgradeable(poolRewardToken).safeApprove(uniRouter, type(uint256).max);
         }
     }
 
@@ -709,9 +711,9 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategy {
      * @dev Removes a pool that will no longer be used.
      */
     function removeUsedPool(uint256 _poolIndex) public {
-        _onlyStrategistOrOwner();
+        _atLeastRole(STRATEGIST);
         uint256 poolId = currentlyUsedPools[_poolIndex];
-        IERC20(poolRewardToWftmPaths[poolId][0]).safeApprove(uniRouter, 0);
+        IERC20Upgradeable(poolRewardToWftmPaths[poolId][0]).safeApprove(uniRouter, 0);
         uint256 balance = poolxTokenBalance[poolId];
         _aceLabWithdraw(poolId, balance);
         uint256 lastPoolIndex = currentlyUsedPools.length - 1;
@@ -725,12 +727,12 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategy {
         _aceLabDeposit(currentPoolId, balance);
     }
 
-    function primeFriendlyWithdraw() external onlyRole(FRIENDLY_WITHDRAWER) {
+ /*   function primeFriendlyWithdraw() external onlyRole(FRIENDLY_WITHDRAWER) {
         useSecurityFee = false;
     }
-
+*/
     function updateStakingContract(address _newAddress) external {
-        _onlyStrategistOrOwner();
+        _atLeastRole(STRATEGIST);
 
         for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
             uint256 poolId = currentlyUsedPools[index];
