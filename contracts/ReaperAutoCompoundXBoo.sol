@@ -5,8 +5,8 @@ import "./interfaces/IAceLab.sol";
 import "./interfaces/IBooMirrorWorld.sol";
 import "./interfaces/IUniswapRouterETH.sol";
 import "./interfaces/IPaymentRouter.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/math/MathUpgradeable.sol";
 
 pragma solidity 0.8.9;
 
@@ -14,10 +14,9 @@ pragma solidity 0.8.9;
  * @dev This is a strategy to stake stakingToken into xToken, and then stake xToken in different pools to collect more rewards
  * The strategy will compound the pool rewards into stakingToken which will be deposited into the strategy for more yield.
  */
-contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
-    using SafeERC20 for IERC20;
-    using SafeERC20 for IBooMirrorWorld;
-    using SafeMath for uint256;
+contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategy {
+    using SafeERC20Upgradeable for IERC20Upgradeable;
+    using SafeERC20Upgradeable for IBooMirrorWorld;
     using SafeMath for int256;
 
     /**
@@ -39,7 +38,8 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      */
     address public constant uniRouter =
         0xF491e7B69E4244ad4002BC14e878a34207E38c29;
-    address public constant aceLab = 0x2352b745561e7e6FCD03c093cE7220e3e126ace0;
+    address public aceLab = 0x399D73bB7c83a011cD85DF2a3CdF997ED3B3439f;
+    address public Magicats = 0x2aB5C606a5AA2352f8072B9e2E8A213033e2c4c9;
 
     /**
      * @dev Routes we take to swap tokens
@@ -89,13 +89,23 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
      * @dev Initializes the strategy. Sets parameters, saves routes, and gives allowances.
      * @notice see documentation for each variable above its respective declaration.
      */
-    constructor(
+    /*constructor(
         address _vault,
         address[] memory _feeRemitters,
         address[] memory _strategists
     ) ReaperBaseStrategy(_vault, _feeRemitters, _strategists) {
         _giveAllowances();
         useSecurityFee = true;
+    }*/
+    function initialize(
+        address _vault,
+        address[] memory _feeRemitters,
+        address[] memory _strategists
+        address[] memory _multisigRoles,
+    ) public initializer {
+        __ReaperBaseStrategy_init(_vault, _feeRemitters, _strategists, _multisigRoles);
+        _giveAllowances();
+        useSecurityFee = false;
     }
 
     /**
@@ -698,7 +708,7 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
     /**
      * @dev Removes a pool that will no longer be used.
      */
-    function removeUsedPool(uint256 _poolIndex) external {
+    function removeUsedPool(uint256 _poolIndex) public {
         _onlyStrategistOrOwner();
         uint256 poolId = currentlyUsedPools[_poolIndex];
         IERC20(poolRewardToWftmPaths[poolId][0]).safeApprove(uniRouter, 0);
@@ -717,5 +727,20 @@ contract ReaperAutoCompoundXBoo is ReaperBaseStrategy {
 
     function primeFriendlyWithdraw() external onlyRole(FRIENDLY_WITHDRAWER) {
         useSecurityFee = false;
+    }
+
+    function updateStakingContract(address _newAddress) external {
+        _onlyStrategistOrOwner();
+
+        for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
+            uint256 poolId = currentlyUsedPools[index];
+            uint256 balance = poolxTokenBalance[poolId];
+            _aceLabWithdraw(poolId, balance);
+            _swapRewardToWftm(poolId);
+            removeUsedPool(index);
+        }
+        _removeAllowances();
+
+        aceLab = _newAddress;
     }
 }
