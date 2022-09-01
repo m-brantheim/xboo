@@ -25,7 +25,7 @@ task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
 module.exports = {
   networks: {
     opera: {
-      url: "https://rpc.ftm.tools/",
+      url: "https://rpc.ankr.com/fantom",
       accounts: [devAccount],
     },
   },

@@ -1,7 +1,7 @@
 const pools = require("../pools.json");
 const hre = require("hardhat");
 const chai = require("chai");
-const { solidity } = require("ethereum-waffle");
+const { solidity, loadFixture } = require("ethereum-waffle");
 chai.use(solidity);
 const { expect } = chai;
 
@@ -16,6 +16,7 @@ const updatePools = async (acelab) => {
 };
 
 describe("Vaults", function () {
+
   const i = 0;
   let Vault;
   let Strategy;
@@ -39,14 +40,14 @@ describe("Vaults", function () {
   let strategist;
   let owner;
 
-  beforeEach(async function () {
+  async function deploySetup() {
     //reset network
     await network.provider.request({
       method: "hardhat_reset",
       params: [
         {
           forking: {
-            jsonRpcUrl: "https://late-wild-fire.fantom.quiknode.pro/"
+            jsonRpcUrl: "https://rpc.ankr.com/fantom"
           },
         },
       ],
@@ -200,18 +201,6 @@ describe("Vaults", function () {
     const tx6 = await strategy.addUsedPool(ORBS_ID, [ORBS, WFTM]);
     const tx7 = await strategy.addUsedPool(SINGLE_ID, [SINGLE, WFTM]);
 
-    // const tx1 = await strategy.addUsedPool(WFTM_ID, [WFTM, WFTM]);
-    // const tx2 = await strategy.addUsedPool(WOO_ID, [WOO, WFTM]);
-    // const tx3 = await strategy.addUsedPool(TREEB_ID, [TREEB, WFTM]);
-    // const tx4 = await strategy.addUsedPool(FONT_ID, [FONT, WFTM]);
-    // const tx6 = await strategy.addUsedPool(YEL_ID, [YEL, WFTM]);
-    // const tx7 = await strategy.addUsedPool(TUSD_ID, TUSD_PATHS);
-    // const tx8 = await strategy.addUsedPool(YOSHI_ID, [YOSHI, WFTM]);
-    // const tx9 = await strategy.addUsedPool(SPA_ID, SPA_PATHS);
-    // const tx11 = await strategy.addUsedPool(OOE_ID, [OOE, WFTM]);
-    // const tx12 = await strategy.addUsedPool(HND_ID, [HND, WFTM]);
-    // const tx13 = await strategy.addUsedPool(BRUSH_ID, [BRUSH, WFTM]);
-
     await tx1.wait();
     await tx2.wait();
     await tx3.wait();
@@ -255,9 +244,17 @@ describe("Vaults", function () {
       .connect(bigBooWhale)
       .approve(vault.address, ethers.utils.parseEther("1000000000"));
     console.log("approvals6");
-  });
 
-  describe("Deploying the vault and strategy", function () {
+    await boo
+    .connect(bigBooWhale)
+    .transfer(booHolder, ethers.utils.parseEther("1000"));
+    console.log("transfer 1000 boo to self address");
+    return {
+      vault, strategy, boo, acelab, self, booWhale, bigBooWhale, strategistAddress
+    }
+  }
+
+  xdescribe("Deploying the vault and strategy", function () {
     it("should initiate vault with a 0 balance", async function () {
       console.log(1);
       const totalBalance = await vault.balance();
@@ -273,8 +270,8 @@ describe("Vaults", function () {
       expect(pricePerFullShare).to.equal(ethers.utils.parseEther("1"));
     });
   });
-  describe("Vault Tests", function () {
-    it("should allow deposits and account for them correctly", async function () {
+  xdescribe("Vault Tests", function () {
+    xit("should allow deposits and account for them correctly", async function () {
       const userBalance = await boo.balanceOf(selfAddress);
       console.log(1);
       console.log(`userBalance: ${userBalance}`);
@@ -308,7 +305,7 @@ describe("Vaults", function () {
       expect(isSmallBalanceDifference).to.equal(true);
       expect(deductedAmount).to.equal(depositAmount);
     });
-    it("should mint user their pool share", async function () {
+    xit("should mint user their pool share", async function () {
       console.log("---------------------------------------------");
       const userBalance = await boo.balanceOf(selfAddress);
       console.log(userBalance.toString());
@@ -343,7 +340,7 @@ describe("Vaults", function () {
       // expect(ownerBooBalance).to.equal(ownerDepositAmount);
       // expect(selfBooBalance).to.equal(selfDepositAmount);
     });
-    it("should allow withdrawals", async function () {
+    xit("should allow withdrawals", async function () {
       const userBalance = await boo.balanceOf(selfAddress);
       console.log(`userBalance: ${userBalance}`);
       const depositAmount = ethers.BigNumber.from(ethers.utils.parseEther("1"));
@@ -372,7 +369,7 @@ describe("Vaults", function () {
         expectedBalance.sub(userBalanceAfterWithdraw) < 5;
       expect(isSmallBalanceDifference).to.equal(true);
     });
-    it("should handle small deposit + withdraw", async function () {
+    xit("should handle small deposit + withdraw", async function () {
       const userBalance = await boo.balanceOf(selfAddress);
       console.log(`userBalance: ${userBalance}`);
       const depositAmount = ethers.BigNumber.from(
@@ -398,13 +395,13 @@ describe("Vaults", function () {
         expectedBalance.sub(userBalanceAfterWithdraw) < 5;
       expect(isSmallBalanceDifference).to.equal(true);
     });
-    it("should be able to harvest", async function () {
+    xit("should be able to harvest", async function () {
       await vault.connect(self).deposit(100000);
       const estimatedGas = await strategy.estimateGas.harvest();
       console.log(`estimatedGas: ${estimatedGas}`);
       await strategy.connect(self).harvest();
     });
-    it("should provide yield", async function () {
+    xit("should provide yield", async function () {
       await strategy.connect(self).harvest();
       const depositAmount = ethers.utils.parseEther(".05");
       await vault.connect(self).deposit(depositAmount);
@@ -451,24 +448,25 @@ describe("Vaults", function () {
     });
   });
   describe("Strategy", function () {
-    it("should be able to remove a pool", async function () {
+    xit("should be able to remove a pool", async function () {
+      const {vault, strategy, boo, acelab, self, booWhale, bigBooWhale, strategistAddress} = await loadFixture(deploySetup);
       await strategy.connect(self).harvest();
-      const bigWhaleDepositAmount = ethers.utils.parseEther("233977");
+      const bigWhaleDepositAmount = ethers.utils.parseEther("100000");
       await vault.connect(bigBooWhale).deposit(bigWhaleDepositAmount);
       await strategy.connect(self).harvest();
 
-      const lqdrPoolId = 11;
+      const lqdrPoolId = 2;
       const lqdrIndex = 1;
-      const treebPoolBalance = await strategy.poolxTokenBalance(lqdrPoolId);
-      console.log(`treebPoolBalance: ${treebPoolBalance}`);
+      const lqdrPoolBalance = await strategy.poolxTokenBalance(lqdrPoolId);
+      console.log(`lqdrPoolBalance: ${lqdrPoolBalance}`);
       const vaultBalance = await vault.balance();
 
       const tx = await strategy.removeUsedPool(lqdrIndex);
       await tx.wait();
 
       const newVaultBalance = await vault.balance();
-      const newTreebPoolBalance = await strategy.poolxTokenBalance(lqdrPoolId);
-      console.log(`newTreebPoolBalance: ${newTreebPoolBalance}`);
+      const newlqdrPoolBalance = await strategy.poolxTokenBalance(lqdrPoolId);
+      console.log(`newlqdrPoolBalance: ${newlqdrPoolBalance}`);
 
       // Make sure harvest can run without error after removing
       await strategy.connect(self).harvest();
@@ -478,32 +476,36 @@ describe("Vaults", function () {
       const isSmallBalanceDifference =
         Math.abs(vaultBalance.sub(newVaultBalance)) < 5;
 
-      expect(newTreebPoolBalance).to.equal(0);
+      expect(newlqdrPoolBalance).to.equal(0);
       expect(isSmallBalanceDifference).to.equal(true);
     });
-    it("should be able to pause and unpause", async function () {
+    xit("should be able to pause and unpause", async function () {
+      const {vault, strategy, boo, acelab, self, booWhale, bigBooWhale, strategistAddress} = await loadFixture(deploySetup);
       await strategy.pause();
       const depositAmount = ethers.utils.parseEther(".05");
-      await expect(vault.connect(self).deposit(depositAmount)).to.be.reverted;
+      await expect(vault.connect(booWhale).deposit(depositAmount)).to.be.reverted;
       await strategy.unpause();
-      await expect(vault.connect(self).deposit(depositAmount)).to.not.be
+      await expect(vault.connect(booWhale).deposit(depositAmount)).to.not.be
         .reverted;
     });
-    it("should be able to panic", async function () {
+    xit("should be able to panic", async function () {
+      const {vault, strategy, boo, acelab, self, booWhale, bigBooWhale, strategistAddress} = await loadFixture(deploySetup);
       const depositAmount = ethers.utils.parseEther(".05");
-      await vault.connect(self).deposit(depositAmount);
+      await vault.connect(booWhale).deposit(depositAmount);
       const vaultBalance = await vault.balance();
       const strategyBalance = await strategy.balanceOf();
       await strategy.panic();
       expect(vaultBalance).to.equal(strategyBalance);
       // Accounting is not updated when panicking so newVaultBalance is 2x expected
-      await strategy.updateInternalAccounting();
       const newVaultBalance = await vault.balance();
       const newStrategyBalance = await strategy.balanceOf();
       expect(newVaultBalance).to.equal(vaultBalance);
       expect(newStrategyBalance).to.equal(0);
+      100000100689960121474327
+      200000201379920242948654
     });
-    it("should be able to retire strategy", async function () {
+    xit("should be able to retire strategy", async function () {
+      const {vault, strategy, boo, acelab, self, booWhale, bigBooWhale, strategistAddress} = await loadFixture(deploySetup);
       const depositAmount = ethers.utils.parseEther(".05");
       await vault.connect(self).deposit(depositAmount);
       const vaultBalance = await vault.balance();
@@ -516,12 +518,14 @@ describe("Vaults", function () {
       expect(newVaultBalance).to.gte(vaultBalance);
       expect(newStrategyBalance).to.equal(0);
     });
-    it("should be able to retire strategy with no balance", async function () {
+    xit("should be able to retire strategy with no balance", async function () {
+      const {vault, strategy, boo, acelab, self, booWhale, bigBooWhale, strategistAddress} = await loadFixture(deploySetup);
       // Test needs the require statement to be commented out during the test
       await expect(strategy.retireStrat()).to.not.be.reverted;
     });
     it("should be able to estimate harvest", async function () {
-      const bigWhaleDepositAmount = ethers.utils.parseEther("233977");
+      const {vault, strategy, boo, acelab, self, booWhale, bigBooWhale, strategistAddress} = await loadFixture(deploySetup);
+      const bigWhaleDepositAmount = ethers.utils.parseEther("100000");
       await vault.connect(bigBooWhale).deposit(bigWhaleDepositAmount);
       await strategy.harvest();
       const minute = 60;
@@ -536,7 +540,8 @@ describe("Vaults", function () {
       expect(hasCallFee).to.equal(true);
     });
     it("should include free rewards in estimate harvest", async function () {
-      const bigWhaleDepositAmount = ethers.utils.parseEther("233977");
+      const {vault, strategy, boo, acelab, self, booWhale, bigBooWhale, strategistAddress} = await loadFixture(deploySetup);
+      const bigWhaleDepositAmount = ethers.utils.parseEther("100000");
       await vault.connect(bigBooWhale).deposit(bigWhaleDepositAmount);
       await strategy.harvest();
       const minute = 60;
@@ -552,7 +557,8 @@ describe("Vaults", function () {
       expect(hasCallFee).to.equal(true);
     });
     it("should be able to check internal accounting", async function () {
-      const bigWhaleDepositAmount = ethers.utils.parseEther("327171");
+      const {vault, strategy, boo, acelab, self, booWhale, bigBooWhale, strategistAddress} = await loadFixture(deploySetup);
+      const bigWhaleDepositAmount = ethers.utils.parseEther("100000");
       await vault.connect(bigBooWhale).deposit(bigWhaleDepositAmount);
       await strategy.harvest();
       const minute = 60;
@@ -563,8 +569,9 @@ describe("Vaults", function () {
       const isAccurate = await strategy.isInternalAccountingAccurate();
       expect(isAccurate).to.equal(true);
     });
-    it("should be able to update internal accounting", async function () {
-      const bigWhaleDepositAmount = ethers.utils.parseEther("327171");
+    xit("should be able to update internal accounting", async function () {
+      const {vault, strategy, boo, acelab, self, booWhale, bigBooWhale, strategistAddress} = await loadFixture(deploySetup);
+      const bigWhaleDepositAmount = ethers.utils.parseEther("100000");
       await vault.connect(bigBooWhale).deposit(bigWhaleDepositAmount);
       await strategy.harvest();
       const minute = 60;
@@ -574,7 +581,8 @@ describe("Vaults", function () {
       await updatePools(acelab);
       await expect(strategy.updateInternalAccounting()).to.not.be.reverted;
     });
-    it("cannot add pools past the max cap", async function () {
+    xit("cannot add pools past the max cap", async function () {
+      const {vault, strategy, boo, acelab, self, booWhale, bigBooWhale, strategistAddress} = await loadFixture(deploySetup);
       const TFTM_ID = 0;
       const WFTM = "0x21be370d5312f44cb42ce377bc9b8a0cef1a4c83";
 
@@ -593,6 +601,7 @@ describe("Vaults", function () {
       }
     });
     xit("should include xBoo gains in yield calculation", async function () {
+      const {vault, strategy, boo, acelab, self, booWhale, bigBooWhale, strategistAddress} = await loadFixture(deploySetup);
       const deposit = ethers.utils.parseEther("1");
       const xBoodeposit1 = ethers.utils.parseEther("10");
       const xBoodeposit2 = ethers.utils.parseEther("100");

@@ -8,7 +8,11 @@ import "./interfaces/IPaymentRouter.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/math/SafeMathUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/math/SignedSafeMathUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721ReceiverUpgradeable.sol";
 
+
+import "hardhat/console.sol";
 
 pragma solidity 0.8.9;
 
@@ -16,7 +20,7 @@ pragma solidity 0.8.9;
  * @dev This is a strategy to stake stakingToken into xToken, and then stake xToken in different pools to collect more rewards
  * The strategy will compound the pool rewards into stakingToken which will be deposited into the strategy for more yield.
  */
-contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3 {
+contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgradeable {
     using SafeERC20Upgradeable for IERC20Upgradeable;
     using SafeERC20Upgradeable for IBooMirrorWorld;
     using SafeMathUpgradeable for uint256;
@@ -43,6 +47,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3 {
         0xF491e7B69E4244ad4002BC14e878a34207E38c29;
     address public constant currentAceLab = 0x399D73bB7c83a011cD85DF2a3CdF997ED3B3439f;
     address public constant currentMagicats = 0x2aB5C606a5AA2352f8072B9e2E8A213033e2c4c9;
+    address public magicatsHandler;
     
     address public aceLab;
     address public Magicats;
@@ -225,48 +230,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3 {
         IAceLab(aceLab).withdraw(_poolId, _xTokenAmount);
     }
 
-    /**
-     * @dev Check if the internal pool accounting matches with AceLab
-     */
-    function isInternalAccountingAccurate() external view returns (bool) {
-        uint256 total = 0;
-        for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
-            uint256 _poolId = currentlyUsedPools[index];
-            (uint256 amount, ) = IAceLab(aceLab).userInfo(
-                _poolId,
-                address(this)
-            );
-            uint256 internalBalance = poolxTokenBalance[_poolId];
-            total = total.add(amount);
-            if (amount != internalBalance) {
-                return false;
-            }
-        }
-        if (total != totalPoolBalance) {
-            return false;
-        }
-        return true;
-    }
-
-    /**
-     * @dev If internal accounting is off this function can synchronize
-     *      the internal pool accounting with AceLab
-     */
-    function updateInternalAccounting() external returns (bool) {
-        _atLeastRole(STRATEGIST);
-        uint256 total = 0;
-        for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
-            uint256 _poolId = currentlyUsedPools[index];
-            (uint256 amount, ) = IAceLab(aceLab).userInfo(
-                _poolId,
-                address(this)
-            );
-            poolxTokenBalance[_poolId] = amount;
-            total = total.add(amount);
-        }
-        totalPoolBalance = total;
-        return true;
-    }
+  
 
     /**
      * @dev Core function of the strat, in charge of collecting and re-investing rewards.
@@ -439,11 +403,11 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3 {
             IERC20Upgradeable(wftm).safeTransfer(msg.sender, callFeeToUser);
             IERC20Upgradeable(wftm).safeTransfer(treasury, treasuryFeeToVault);
             IERC20Upgradeable(wftm).safeApprove(strategistRemitter, 0);
-            IERC20Upgradeable(wftm).safeApprove(strategistRemitter, feeToStrategist);
+            /*IERC20Upgradeable(wftm).safeApprove(strategistRemitter, feeToStrategist);
             IPaymentRouter(strategistRemitter).routePayment(
                 wftm,
                 feeToStrategist
-            );
+            );*/
         }
     }
 
@@ -567,14 +531,17 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3 {
             _aceLabWithdraw(poolId, balance);
             _swapRewardToWftm(poolId);
         }
-
+        console.log("before swap to staking token");    
         _swapWftmToStakingToken();
 
         uint256 xTokenBalance = IERC20Upgradeable(xToken).balanceOf(address(this));
         IBooMirrorWorld(xToken).leave(xTokenBalance);
+        console.log("afterleave");
 
         uint256 stakingTokenBalance = stakingToken.balanceOf(address(this));
         stakingToken.transfer(vault, stakingTokenBalance);
+        console.log("successful vault transfer");
+
     }
 
     /**
@@ -599,7 +566,6 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3 {
      */
     function _pause() internal override {
         _atLeastRole(STRATEGIST);
-        _pause();
         _removeAllowances();
     }
 
@@ -608,11 +574,9 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3 {
      */
     function _unpause() internal override {
         _atLeastRole(STRATEGIST);
-        _unpause();
-
+        console.log("before allowances");
         _giveAllowances();
-
-        deposit();
+        console.log("give allowances");
     }
 
     /**
@@ -740,22 +704,38 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3 {
         _aceLabDeposit(currentPoolId, balance);
     }
 
- /*   function primeFriendlyWithdraw() external onlyRole(FRIENDLY_WITHDRAWER) {
-        useSecurityFee = false;
+
+    function updateMagicatsHandler(address handler) external{
+        magicatsHandler = handler;
     }
-*/
-    function updateStakingContract(address _newAddress) external {
-        _atLeastRole(STRATEGIST);
 
-        for (uint256 index = 0; index < currentlyUsedPools.length; index++) {
-            uint256 poolId = currentlyUsedPools[index];
-            uint256 balance = poolxTokenBalance[poolId];
-            _aceLabWithdraw(poolId, balance);
-            _swapRewardToWftm(poolId);
-            removeUsedPool(index);
+    function _approveMagicatsFor(address operator) internal{
+        IERC721Upgradeable(Magicats).setApprovalForAll(operator, true);
+    }
+
+    function approveMagicats() external {
+        _approveMagicatsFor(aceLab);
+        _approveMagicatsFor(magicatsHandler);
+    }
+
+    
+    function updateMagicats(uint poolID, uint[] memory IDsToStake, uint[] memory IDsToUnstake) external{
+        //needs to be secured, called by the handler contract
+        if(IDsToStake.length > 0){
+            IAceLab(aceLab).deposit(poolID, 0, IDsToStake);
         }
-        _removeAllowances();
 
-        aceLab = _newAddress;
+        if(IDsToUnstake.length > 0){
+            IAceLab(aceLab).withdraw(poolID, 0, IDsToUnstake);
+        }
+    }
+
+        function onERC721Received(
+        address operator,
+        address from,
+        uint256 tokenId,
+        bytes calldata data
+    ) external returns (bytes4){
+        return this.onERC721Received.selector;
     }
 }
