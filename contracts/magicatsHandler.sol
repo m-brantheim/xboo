@@ -51,7 +51,7 @@ contract magicatsHandler is IERC721Receiver, ERC721 {
         }
     }
 
-    function updateMagicats(uint poolID, uint[] calldata IDsToStake, uint[] calldata IDsToUnstake) external{
+    function updateStakedMagicats(uint poolID, uint[] calldata IDsToStake, uint[] calldata IDsToUnstake) external{
         IStrategy(strategy).updateMagicats(poolID, IDsToStake, IDsToUnstake);
     }
 
