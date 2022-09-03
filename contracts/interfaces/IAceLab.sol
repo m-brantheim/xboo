@@ -37,7 +37,7 @@ interface IAceLab {
     function userInfo(uint256 _poolId, address _userAddress)
         external
         view
-        returns (uint256 amount, uint256 rewardDebt);
+        returns (uint256 amount, uint256 rewardDebt, uint256 catDebt, uint256 mp);
 
     function poolLength() external view returns (uint256);
 
@@ -45,7 +45,7 @@ interface IAceLab {
     function pendingReward(uint256 _pid, address _user)
         external
         view
-        returns (uint256);
+        returns (uint256, uint256);
 
     // Update reward variables for all pools. Be careful of gas spending!
     function massUpdatePools() external;
