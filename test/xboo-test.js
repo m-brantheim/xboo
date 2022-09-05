@@ -638,9 +638,9 @@ describe("Vaults", function () {
       const hecAlloc = 2000
       const lqdrAlloc = 0;
       const SingleAlloc = 0; //underperforming in tests
-      const orbsAlloc = 2000
-      const galcxalloc = 2000
-      const SDAlloc = 2000
+      const orbsAlloc = 3000
+      const galcxalloc = 1500
+      const SDAlloc = 1500
       const xTarotAlloc = 2000;
       balance = await strategy.totalPoolBalance();
       console.log(balance.toString());

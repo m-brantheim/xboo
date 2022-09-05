@@ -328,6 +328,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
             address(this)
         );
         if (poolRewardTokenBal != 0 && rewardToken != wftm) {
+            IERC20Upgradeable(rewardToken).safeApprove(uniRouter, poolRewardTokenBal);
             IUniswapRouterETH(uniRouter)
                 .swapExactTokensForTokensSupportingFeeOnTransferTokens(
                     poolRewardTokenBal,
@@ -482,7 +483,6 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
         // Give uniRouter permission to swap wftm to Boo
         IERC20Upgradeable(wftm).safeApprove(uniRouter, 0);
         IERC20Upgradeable(wftm).safeApprove(uniRouter, type(uint256).max);
-        _givePoolAllowances();
     }
 
     /**
@@ -498,30 +498,9 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
         xBoo.safeApprove(aceLab, 0);
         // Remove uniRouter permission to swap wftm to Boo
         IERC20Upgradeable(wftm).safeApprove(uniRouter, 0);
-        _removePoolAllowances();
     }
 
-    /**
-     * @dev Gives max allowance to all pool rewards for the {uniRouter}.
-     */
-    function _givePoolAllowances() internal {
-        for (uint256 index = 0; index < IAceLab(aceLab).poolLength(); index++) {
-            address rewardToken = address(IAceLab(aceLab).poolInfo(index).RewardToken);
-            IERC20Upgradeable(rewardToken).safeApprove(uniRouter, 0);
-            IERC20Upgradeable(rewardToken).safeApprove(uniRouter, type(uint256).max);
-        }
-    }
-
-    /**
-     * @dev Removes all allowance to all pool rewards for the {uniRouter}.
-     */
-    function _removePoolAllowances() internal {
-        for (uint256 index = 0; index < IAceLab(aceLab).poolLength(); index++) {
-            address rewardToken = address(IAceLab(aceLab).poolInfo(index).RewardToken);
-            IERC20Upgradeable(rewardToken).safeApprove(uniRouter, 0);
-        }
-    }
-
+   
     function _approveMagicatsFor(address operator) internal{
         IERC721Upgradeable(Magicats).setApprovalForAll(operator, true);
     }
