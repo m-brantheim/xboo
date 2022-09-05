@@ -42,7 +42,7 @@ interface IAceLab {
     function poolLength() external view returns (uint256);
 
     // View function to see pending BOOs on frontend.
-    function pendingReward(uint256 _pid, address _user)
+    function pendingRewards(uint256 _pid, address _user)
         external
         view
         returns (uint256, uint256);

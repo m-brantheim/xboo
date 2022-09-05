@@ -11,7 +11,6 @@ import "@openzeppelin/contracts-upgradeable/utils/math/SignedSafeMathUpgradeable
 import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721ReceiverUpgradeable.sol";
 
-
 import "hardhat/console.sol";
 
 pragma solidity 0.8.9;
@@ -173,19 +172,14 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
             uint poolLength = IAceLab(aceLab).poolLength();
                 // if its an inconsequential amount <5%, then withdraw from first pool, otherwise withdraw equally from all pools
             uint256 withdrawPercentage = (_amount - BooBalance) * 10000 / totalPoolBalance;
-            if(withdrawPercentage > 500) {
-                
-                for(uint i = 0; i < poolLength; i++){
-                    if(poolxBooBalance[i] != 0){
-                        _aceLabWithdraw(
-                            i, 
-                            (withdrawPercentage * poolxBooBalance[i]/ 10000)
-                        );
-                    }
+           
+            for(uint i = 0; i < poolLength; i++){
+                if(poolxBooBalance[i] != 0){
+                    _aceLabWithdraw(
+                        i, 
+                        (withdrawPercentage * poolxBooBalance[i]/ 10000)
+                    );
                 }
-
-            }else {
-                _aceLabWithdraw(currentPoolId, _amount - BooBalance);
             }
 
             uint256 xBooBalance = xBoo.balanceOf(address(this));
@@ -233,7 +227,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
         uint256 currentAllocation;
         for(uint i = 0; i < poolIds.length; i++){
             (currentAllocation,,,) = IAceLab(aceLab).userInfo(i, address(this));
-            _aceLabWithdraw(poolIds[i], currentAllocation);
+            _aceLabWithdraw(i, currentAllocation);
         }
 
         for(uint i = 0; i < poolIds.length; i++){
@@ -261,7 +255,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
         uint256 poolLength = IAceLab(aceLab).poolLength();
         uint256 pending;
         for(uint i = 0; i < poolLength; i++){
-            (pending,) = IAceLab(aceLab).pendingReward(i, address(this));
+            (pending,) = IAceLab(aceLab).pendingRewards(i, address(this));
             if(pending != 0){
                 _writeCatDebt(i);
                 _aceLabWithdraw(i, 0);
@@ -279,10 +273,10 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
         uint256 catBoostWftm;
         uint256 catBoostTotal;
         uint256 totalHarvest;
+        address rewardToken;
         for(uint i = 0; i < poolLength; i++){
-            address rewardToken = address((IAceLab(aceLab)).poolInfo(i).RewardToken);
+            rewardToken = address((IAceLab(aceLab)).poolInfo(i).RewardToken);
             tokenBal = IERC20Upgradeable(rewardToken).balanceOf(address(this));
-
             if(tokenBal != 0){
 
                 wftmBalBefore = IERC20Upgradeable(wftm).balanceOf(address(this));    
@@ -303,20 +297,23 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
                     _swapRewardToWftm(i);
                 }
                 else if(_handler != address(this) && _handler != address(0)){
+                    IERC20Upgradeable(rewardToken).approve(_handler, tokenBal);
                     //external call to handler
                 }
 
                 wftBalAfter = IERC20Upgradeable(wftm).balanceOf(address(this));
-                totalHarvest += (wftBalAfter - wftmBalBefore);  
+                totalHarvest += (wftBalAfter - wftmBalBefore);
+                console.log("wftm harvest for poolId: %s is %s", i, (wftBalAfter - wftmBalBefore));  
                 catBoostWftm = ((wftBalAfter - wftmBalBefore) * catBoostPercent) / 10000;
                 catBoostTotal += catBoostWftm;
             }
-
-            return (catBoostTotal / totalHarvest) * 10000 ;
         }
-        
 
-        return wftBalAfter - wftmBalBefore;
+        if(catBoostTotal == 0){
+            return 0;
+        }
+        return (catBoostTotal / totalHarvest) * 10000 ;        
+
     }
 
    
@@ -398,7 +395,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
     }
 
     function _writeCatDebt(uint256 _poolId) internal {
-        (,uint256 catReward) = IAceLab(aceLab).pendingReward(_poolId, address(this));
+        (,uint256 catReward) = IAceLab(aceLab).pendingRewards(_poolId, address(this));
         magicBoost[_poolId] += catReward;
     }
 
@@ -466,9 +463,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
      */
     function _unpause() internal override {
         _atLeastRole(STRATEGIST);
-        console.log("before allowances");
         _giveAllowances();
-        console.log("give allowances");
     }
 
     /**
@@ -577,6 +572,11 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
 
     function retireStrat() external{
         vault;
+    }
+
+    function setRoute(uint256 poolId, address[] calldata routes) external {
+        _atLeastRole(STRATEGIST);
+        poolRewardToWftmPaths[poolId] = routes;
     }
 }
 
