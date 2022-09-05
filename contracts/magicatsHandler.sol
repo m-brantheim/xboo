@@ -4,33 +4,46 @@ import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "./interfaces/IAceLab.sol";
+import "./interfaces/IBooMirrorWorld.sol";
 import "./interfaces/IStrategy.sol";
+import "./interfaces/IVault.sol";
 
 contract magicatsHandler is IERC721Receiver, ERC721 {
     address aceLab = 0x399D73bB7c83a011cD85DF2a3CdF997ED3B3439f;
     address public constant Magicats = 0x2aB5C606a5AA2352f8072B9e2E8A213033e2c4c9;
+    address public vault;
 
-    struct magicat{
+    struct Magicat{
         uint256 magicatId;
         uint256 manapoints;
+        uint256 lastHarvestClaimed;
     }
-    magicat[] managedMagicats;
-    mapping(address => magicat[]) userMagicats;
+    struct Harvest{
+        uint256 amount;
+        uint256 totalManaPoints;
+        uint256 timestamp;
+    }
+    uint256 totalMp;
+
+    Harvest[] harvests;
+    mapping(uint256 => Magicat) idToMagicat;
     address strategy;
 
-    constructor(address _strategy) ERC721("reaper magicats", "rfMagicats")
+    constructor(address _strategy, address _vault) ERC721("reaper magicats", "rfMagicats")
     {
         strategy = _strategy;
         _approveMagicatsFor(strategy);
+        vault = _vault;
     }
     function deposit(uint256[] calldata magicatsIds) external{
-        magicat memory deposited;
+        Magicat memory deposited;
         for(uint i; i < magicatsIds.length; i++){
             deposited.magicatId = magicatsIds[i];
             deposited.manapoints = IAceLab(aceLab).rarityOf(magicatsIds[i]);
+            deposited.lastHarvestClaimed = harvests.length;
 
-            managedMagicats.push(deposited);
-            userMagicats[msg.sender].push(deposited);
+            totalMp += deposited.manapoints;
+            idToMagicat[magicatsIds[i]] = deposited;
 
             
 
@@ -61,6 +74,46 @@ contract magicatsHandler is IERC721Receiver, ERC721 {
 
     function updateStrategy(address _strategy) external{
         strategy = _strategy;
+    }
+
+    function processRewards() external{
+        Harvest memory latestHarvest;
+        _redepositGains();
+        latestHarvest.amount = IERC20(vault).balanceOf(address(this));
+        latestHarvest.totalManaPoints = totalMp;
+        latestHarvest.timestamp = block.timestamp;
+        harvests.push(latestHarvest);
+    }
+
+    function getMagicatRewards(uint256 id) public view returns (uint256) {
+        uint256 totalHarvests = harvests.length;
+        Magicat memory cat =  idToMagicat[id];
+        uint256 magicatShare;
+        uint256 unclaimedRewards;
+        for(uint i = cat.lastHarvestClaimed; i < totalHarvests; i++){
+            magicatShare = harvests[i].amount * cat.manapoints / totalMp;
+            unclaimedRewards += magicatShare;
+        }
+
+        return unclaimedRewards;
+        
+    }
+
+    function _claimRewards(uint256 _id) internal {
+        uint256 owed = getMagicatRewards(_id);
+        IERC20(vault).transfer(msg.sender, owed);
+    }
+
+    function claimRewards(uint256[] calldata ids) public {
+        for(uint i = 0; i < ids.length; i++){
+            require(_isApprovedOrOwner(msg.sender, ids[i]), "!approved");
+            _claimRewards(ids[i]);
+            idToMagicat[ids[i]].lastHarvestClaimed = harvests.length - 1;
+        }
+    }
+
+    function _redepositGains() internal {
+
     }
 
     function onERC721Received(
