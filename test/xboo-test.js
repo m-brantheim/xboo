@@ -566,7 +566,6 @@ describe("Vaults", function () {
       const day = 24 * hour;
       await moveTimeForward(10 * day);
       await updatePools(acelab);
-      const isAccurate = await strategy.isInternalAccountingAccurate();
       expect(isAccurate).to.equal(true);
     });
     xit("should be able to update internal accounting", async function () {
