@@ -1,16 +1,23 @@
 pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./interfaces/IMagicats.sol";
 import "./interfaces/IAceLab.sol";
 import "./interfaces/IBooMirrorWorld.sol";
 import "./interfaces/IStrategy.sol";
 import "./interfaces/IVault.sol";
 
-contract magicatsHandler is IERC721Receiver, ERC721 {
+contract magicatsHandler is IERC721Receiver, ERC721Enumerable {
     address aceLab = 0x399D73bB7c83a011cD85DF2a3CdF997ED3B3439f;
     address public constant Magicats = 0x2aB5C606a5AA2352f8072B9e2E8A213033e2c4c9;
+    IBooMirrorWorld public constant xBoo =
+        IBooMirrorWorld(0xa48d959AE2E88f1dAA7D5F611E01908106dE7598); // xBoo
+    IERC20 public constant Boo =
+        IERC20(0x841FAD6EAe12c286d1Fd18d1d525DFfA75C7EFFE); // Boo
+
     address public vault;
 
     struct Magicat{
@@ -113,7 +120,31 @@ contract magicatsHandler is IERC721Receiver, ERC721 {
     }
 
     function _redepositGains() internal {
+        uint256 xbooBal = xBoo.balanceOf(address(this));
+        xBoo.leave(xbooBal);
+        uint256 BooBal = Boo.balanceOf(address(this));
+        Boo.approve(vault, BooBal);
+        IVault(vault).deposit(BooBal);
+    }
 
+    function getDepositableMagicats(address owner) external view returns (uint [] memory){
+        uint256 balance = IMagicat(Magicats).balanceOf(owner);
+        uint256[] memory ids;
+        for(uint i = 0; i < balance; i++){
+            ids[i] = IMagicat(Magicats).tokenOfOwnerByIndex(owner, i);
+        }
+
+        return ids;
+    }
+
+    function getDepositedMagicats(address owner) external view returns (uint [] memory){
+        uint256 balance = ERC721.balanceOf(owner);
+        uint256[] memory ids;
+         for(uint i = 0; i < balance; i++){
+            ids[i] = ERC721Enumerable.tokenOfOwnerByIndex(owner, i);
+        }
+
+        return ids;
     }
 
     function onERC721Received(

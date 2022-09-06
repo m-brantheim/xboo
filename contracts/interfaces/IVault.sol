@@ -4,4 +4,5 @@ pragma solidity 0.8.9;
 
 interface IVault {
     function getPricePerFullShare() external view returns (uint256);
+    function deposit(uint256) external;
 }
