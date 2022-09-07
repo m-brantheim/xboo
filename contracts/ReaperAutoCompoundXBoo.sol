@@ -71,9 +71,6 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
      * {maxNrOfPools} - The maximum amount of pools the strategy can use
      */
     uint256 public currentPoolId;
-    mapping(uint256 => uint256) public poolYield;
-    mapping(uint256 => bool) public hasAllocatedToPool;
-
 
     /**
      * @dev Variables for pool selection

@@ -85,8 +85,9 @@ contract magicatsHandler is IERC721Receiver, ERC721Enumerable {
 
     function processRewards() external{
         Harvest memory latestHarvest;
+        uint256 beforeAmount = IERC20(vault).balanceOf(address(this));
         _redepositGains();
-        latestHarvest.amount = IERC20(vault).balanceOf(address(this));
+        latestHarvest.amount = IERC20(vault).balanceOf(address(this)) - beforeAmount;
         latestHarvest.totalManaPoints = totalMp;
         latestHarvest.timestamp = block.timestamp;
         harvests.push(latestHarvest);
