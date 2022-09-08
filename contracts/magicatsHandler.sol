@@ -34,6 +34,7 @@ contract magicatsHandler is IERC721Receiver, ERC721Enumerable {
 
     Harvest[] harvests;
     mapping(uint256 => Magicat) idToMagicat;
+    mapping(uint256 => uint256) MagicatIdToStakedPid;
     address strategy;
 
     constructor(address _strategy, address _vault) ERC721("reaper magicats", "rfMagicats")
@@ -42,7 +43,7 @@ contract magicatsHandler is IERC721Receiver, ERC721Enumerable {
         _approveMagicatsFor(strategy);
         vault = _vault;
     }
-    function deposit(uint256[] calldata magicatsIds) external{
+    function deposit(uint256[] memory magicatsIds) external{
         Magicat memory deposited;
         for(uint i; i < magicatsIds.length; i++){
             deposited.magicatId = magicatsIds[i];
@@ -62,17 +63,36 @@ contract magicatsHandler is IERC721Receiver, ERC721Enumerable {
         }
     }
 
-    function withdraw(uint256[] calldata magicatsIds) external{
+    function withdraw(uint256[] memory magicatsIds) external{
         for(uint i; i < magicatsIds.length; i++){
             require(_isApprovedOrOwner(address(this), magicatsIds[i]), "!approved");
-            IERC721(Magicats).transferFrom(address(this), msg.sender, magicatsIds[i]);
-            _burn(magicatsIds[i]);
-
+            if(IERC721(Magicats).ownerOf(magicatsIds[i]) == strategy){
+                _burn(magicatsIds[i]);
+                IERC721(Magicats).transferFrom(strategy, msg.sender, magicatsIds[i]);
+  
+            }else if (IERC721(Magicats).ownerOf(magicatsIds[i]) == aceLab){
+                _burn(magicatsIds[i]);
+                uint[] memory empty;
+                uint[] memory unstake;
+                unstake[0] = magicatsIds[i]; //there is probably a better way to do this
+                _updateStakedMagicats(MagicatIdToStakedPid[magicatsIds[i]],empty, unstake );
+                IERC721(Magicats).transferFrom(strategy, msg.sender, magicatsIds[i]);
+  
+            }
         }
     }
 
-    function updateStakedMagicats(uint poolID, uint[] calldata IDsToStake, uint[] calldata IDsToUnstake) external{
+    function _updateStakedMagicats(uint poolID, uint[] memory IDsToStake, uint[] memory IDsToUnstake) internal{
         IStrategy(strategy).updateMagicats(poolID, IDsToStake, IDsToUnstake);
+        for(uint i = 0; i < IDsToStake.length; i++){
+            MagicatIdToStakedPid[IDsToStake[i]] = poolID;
+        }
+        //we don't need to update unstaked because unstaked will sit in the strategy and therefore have no need for a poolID
+    }
+
+    function updateStakedMagicats(uint poolID, uint[] memory IDsToStake, uint[] memory IDsToUnstake) external{
+        //require(_atLeastRole(KEEPER), "!AUTHORIZED");
+        _updateStakedMagicats(poolID, IDsToStake, IDsToUnstake);
     }
 
     function _approveMagicatsFor(address operator) internal{
@@ -112,7 +132,7 @@ contract magicatsHandler is IERC721Receiver, ERC721Enumerable {
         IERC20(vault).transfer(msg.sender, owed);
     }
 
-    function claimRewards(uint256[] calldata ids) public {
+    function claimRewards(uint256[] memory ids) public {
         for(uint i = 0; i < ids.length; i++){
             require(_isApprovedOrOwner(msg.sender, ids[i]), "!approved");
             _claimRewards(ids[i]);
@@ -148,11 +168,21 @@ contract magicatsHandler is IERC721Receiver, ERC721Enumerable {
         return ids;
     }
 
+    function massUnstakeMagicats() external {
+        //_atLeastRole(Strategist);
+        for(uint i = 0; i < IAceLab(aceLab).poolLength(); i++){
+            uint[] memory stakedMagicats = IAceLab(aceLab).getStakedMagicats(i, strategy);
+            uint[] memory empty;
+            _updateStakedMagicats(i,empty,stakedMagicats);
+        }
+    }
+
+
     function onERC721Received(
         address operator,
         address from,
         uint256 tokenId,
-        bytes calldata data
+        bytes memory data
     ) external returns (bytes4){
         return this.onERC721Received.selector;
     }
