@@ -279,7 +279,7 @@ describe("Magicats Staking", function () {
   }
 
   describe("Magicats Functions", function () {
-    it("should be able to deposit and withdraw magicats", async function () {
+    xit("should be able to deposit and withdraw magicats", async function () {
         const {
         vault, strategy, boo, acelab, magicatsHandler, magicats,
         self, selfAddress, booWhale, bigBooWhale, strategistAddress,
@@ -298,6 +298,72 @@ describe("Magicats Staking", function () {
         await magicatsHandler.connect(self).deposit(magicatIds);
         await magicatsHandler.connect(strategist).updateStakedMagicats(GALCX_ID, magicatIds,[]);
         await magicatsHandler.connect(self).withdraw(magicatIds);
+
+    });
+    it("should be able to see increased yield from the addition of magicat staking", async function(){
+        const {
+            vault, strategy, boo, acelab, magicatsHandler, magicats,
+            self, selfAddress, booWhale, bigBooWhale, strategistAddress,
+            HEC_ID, LQDR_ID, SINGLE_ID, xTarot_ID, ORBS_ID, GALCX_ID, SD_ID} 
+            = await loadFixture(deploySetup);
+    
+            const magicatIds = await magicatsHandler.connect(self).getDepositableMagicats(selfAddress);
+            console.log(`magicats IDS %s: ${magicatIds}, available for deposit`);
+            await magicats.connect(self).setApprovalForAll(magicatsHandler.address, true);
+            console.log(`approvals set`);
+            await magicatsHandler.connect(self).deposit(magicatIds);
+    
+            await magicatsHandler.connect(self).setApprovalForAll(magicatsHandler.address, true);
+    
+            //BEFORE MAGICATS ARE STAKED
+            const minute = 60;
+            const hour = 60 * minute;
+            await moveTimeForward(13 * hour);
+            await updatePools(acelab);
+            await strategy.harvest();
+            await moveTimeForward(13 * hour);
+            let apr = await strategy.averageAPRAcrossLastNHarvests(6);
+            console.log(`apr0: ${apr}`);
+            await strategy.harvest();
+            await moveTimeForward(13 * hour);
+            apr = await strategy.averageAPRAcrossLastNHarvests(6);
+            console.log(`apr1: ${apr}`);
+            await strategy.harvest();
+            await moveTimeForward(13 * hour);
+            apr = await strategy.averageAPRAcrossLastNHarvests(6);
+            console.log(`apr2: ${apr}`);
+            await strategy.harvest();
+            await moveTimeForward(13 * hour);
+            apr = await strategy.averageAPRAcrossLastNHarvests(6);
+            console.log(`apr3: ${apr}`);
+            await moveTimeForward(13 * hour);
+            await strategy.harvest();
+            apr = await strategy.averageAPRAcrossLastNHarvests(6);
+            console.log(`apr4: ${apr}`);
+
+            await magicatsHandler.connect(strategist).updateStakedMagicats(GALCX_ID, magicatIds,[]);
+            console.log("staking magicats into acelab");
+            await updatePools(acelab);
+            await strategy.harvest();
+            await moveTimeForward(13 * hour);
+            apr = await strategy.averageAPRAcrossLastNHarvests(6);
+            console.log(`apr1: ${apr}`);
+            await strategy.harvest();
+            await moveTimeForward(13 * hour);
+            apr = await strategy.averageAPRAcrossLastNHarvests(6);
+            console.log(`apr2: ${apr}`);
+            await strategy.harvest();
+            await moveTimeForward(13 * hour);
+            apr = await strategy.averageAPRAcrossLastNHarvests(6);
+            console.log(`apr3: ${apr}`);
+            await strategy.harvest();
+            await moveTimeForward(13 * hour);
+            apr = await strategy.averageAPRAcrossLastNHarvests(6);
+            console.log(`apr4: ${apr}`);
+            await moveTimeForward(13 * hour);
+            await strategy.harvest();
+            apr = await strategy.averageAPRAcrossLastNHarvests(6);
+            console.log(`apr5: ${apr}`);
 
     })
   });
