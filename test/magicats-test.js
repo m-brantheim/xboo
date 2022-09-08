@@ -245,7 +245,8 @@ describe("Magicats Staking", function () {
     await strategy.approveMagicats();
 
 
-    const bigWhaleDepositAmount = ethers.utils.parseEther("100000");
+    //const bigWhaleDepositAmount = ethers.utils.parseEther("100000");
+    const bigWhaleDepositAmount = ethers.utils.parseEther("1000");
     await vault.connect(bigBooWhale).deposit(bigWhaleDepositAmount);
     console.log("bigdeposit");
     const hecAlloc = 2000
@@ -346,24 +347,28 @@ describe("Magicats Staking", function () {
             await updatePools(acelab);
             await strategy.harvest();
             await moveTimeForward(13 * hour);
-            apr = await strategy.averageAPRAcrossLastNHarvests(6);
+            apr = await strategy.averageAPRAcrossLastNHarvests(3);
             console.log(`apr1: ${apr}`);
             await strategy.harvest();
             await moveTimeForward(13 * hour);
-            apr = await strategy.averageAPRAcrossLastNHarvests(6);
+            apr = await strategy.averageAPRAcrossLastNHarvests(3);
             console.log(`apr2: ${apr}`);
             await strategy.harvest();
             await moveTimeForward(13 * hour);
-            apr = await strategy.averageAPRAcrossLastNHarvests(6);
+            apr = await strategy.averageAPRAcrossLastNHarvests(3);
             console.log(`apr3: ${apr}`);
             await strategy.harvest();
             await moveTimeForward(13 * hour);
-            apr = await strategy.averageAPRAcrossLastNHarvests(6);
+            apr = await strategy.averageAPRAcrossLastNHarvests(3);
             console.log(`apr4: ${apr}`);
-            await moveTimeForward(13 * hour);
             await strategy.harvest();
-            apr = await strategy.averageAPRAcrossLastNHarvests(6);
+            await moveTimeForward(13 * hour);
+            apr = await strategy.averageAPRAcrossLastNHarvests(3);
             console.log(`apr5: ${apr}`);
+            await strategy.harvest();
+            await moveTimeForward(13 * hour);
+            apr = await strategy.averageAPRAcrossLastNHarvests(3);
+            console.log(`apr6: ${apr}`);
 
     })
   });

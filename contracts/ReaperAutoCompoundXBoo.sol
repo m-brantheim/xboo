@@ -118,6 +118,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
         currentPoolId = 0;
         totalPoolBalance = 0;
         wftmToBooPaths = [wftm, address(Boo)];
+        catProvisionFee = 1500;
 
         _giveAllowances();
 
@@ -240,10 +241,12 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
     function _harvestCore() internal override returns (uint256 callerFee) {
         _claimAllRewards();
         catBoostPercentage = _processRewards();
+        console.log("returned catBoostPercentage was %s", catBoostPercentage );
         callerFee = _chargeFees(); 
         _swapWftmToBoo();
         _enterXBoo();
         _payMagicatDepositers(catBoostPercentage);
+        _aceLabDeposit(currentPoolId, xBoo.balanceOf(address(this)));
     }
 
     function _claimAllRewards() internal {
@@ -252,7 +255,6 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
         for(uint i = 0; i < poolLength; i++){
             (pending,) = IAceLab(aceLab).pendingRewards(i, address(this));
             if(pending != 0){
-                _writeCatDebt(i);
                 _aceLabWithdraw(i, 0);
             }
         }
@@ -281,7 +283,8 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
                 } catch{}
 
                 if(magicBoost[i] != 0){
-                    catBoostPercent = magicBoost[i] * 10000 / tokenBal;
+                    catBoostPercent = (magicBoost[i] * 10000) / tokenBal;
+                    console.log("catBoost percent for index %s is %s", i, catBoostPercent);
                 }else{
                     catBoostPercent = 0;
                 }
@@ -300,14 +303,17 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
                 totalHarvest += (wftBalAfter - wftmBalBefore);
                 console.log("wftm harvest for poolId: %s is %s", i, (wftBalAfter - wftmBalBefore));  
                 catBoostWftm = ((wftBalAfter - wftmBalBefore) * catBoostPercent) / 10000;
+                console.log("of that, catBoostWFTM was %s", catBoostWftm);
                 catBoostTotal += catBoostWftm;
+                magicBoost[i] = 0;
+
             }
         }
 
         if(catBoostTotal == 0){
             return 0;
         }
-        return (catBoostTotal / totalHarvest) * 10000 ;        
+        return ((catBoostTotal * 10000 ) / totalHarvest);    
 
     }
 
@@ -387,7 +393,13 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
     function _payMagicatDepositers(uint256 percentage) internal {
         uint256 xBooBalance = xBoo.balanceOf(address(this));
         uint256 magicatsCut = xBooBalance * percentage / PERCENT_DIVISOR;
-        IERC20Upgradeable(xBoo).transfer(magicatsHandler, magicatsCut);
+        uint256 magicatPayout = magicatsCut * catProvisionFee / PERCENT_DIVISOR;
+        console.log(
+            "xBooBalance = %s \n magicatsCut = %s \n magicatPayout = %s",
+            xBooBalance, magicatsCut, magicatPayout    
+        );
+        IERC20Upgradeable(xBoo).transfer(magicatsHandler, magicatPayout);
+        
     }
 
     function _writeCatDebt(uint256 _poolId) internal {
@@ -546,6 +558,11 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
 
     function retireStrat() external{
         vault;
+    }
+
+    function updateCatProvisionFee(uint256 _fee) external {
+        _atLeastRole(STRATEGIST);
+        catProvisionFee = _fee;
     }
 
     function setRoute(uint256 poolId, address[] calldata routes) external {
