@@ -1,7 +1,7 @@
 async function main() {
-  const vaultAddress = "TODO";
+  const vaultAddress = "0xA8a4A91cC7432D3700384728C2C72ead77Eb8d9e";
 
-  const Strategy = await ethers.getContractFactory("ReaperAutoCompoundXBoo");
+  const Strategy = await ethers.getContractFactory("ReaperAutoCompoundXBoov2");
 
   const treasuryAddress = "0x0e7c5313E9BB80b654734d9b7aB1FB01468deE3b";
   const paymentSplitterAddress = "0x63cbd4134c2253041F370472c130e92daE4Ff174";
@@ -13,11 +13,15 @@ async function main() {
   const guardian = "0xf20E25f2AB644C8ecBFc992a6829478a85A98F2c";
 
   // const options = { gasPrice: 2000000000000, gasLimit: 9000000 };
-  const strategy = await Strategy.deploy(
-    vaultAddress,
-    [treasuryAddress, paymentSplitterAddress],
-    [strategist1, strategist2, strategist3],
-    [superAdmin, admin, guardian]
+  const strategy = await upgrades.deployProxy(
+    Strategy,
+    [
+      vaultAddress,
+      [treasuryAddress, paymentSplitterAddress],
+      [strategist1, strategist2, strategist3],
+      [superAdmin, admin, guardian],
+    ],
+    { kind: "uups", timeout: 0 }
   );
 
   await strategy.deployed();

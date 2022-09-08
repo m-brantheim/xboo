@@ -1,7 +1,7 @@
 async function main() {
-  const strategyAddress = "TODO";
+  const strategyAddress = "0xE970Dd7F7dcDbB5C5167C85DDBD8d9E1b44cF1fd";
 
-  const Strategy = await ethers.getContractFactory("ReaperAutoCompoundXBoo");
+  const Strategy = await ethers.getContractFactory("ReaperAutoCompoundXBoov2");
   const strategy = Strategy.attach(strategyAddress);
 
   const ORBS_ID = 5;
@@ -11,7 +11,7 @@ async function main() {
 
   const tx1 = await strategy.setRoute(ORBS_ID, [ORBS, USDC, WFTM]);
   await tx1.wait();
-  console.log("Pools added to strategy");
+  console.log("Route added to strategy");
 }
 
 main()
