@@ -42,6 +42,7 @@ abstract contract ReaperBaseStrategyv3 is
      * Also note that roles are cascading. So any higher privileged role should be able to perform all the functions
      * of any lower privileged role.
      */
+    bytes32 public constant MAGICATS_HANDLER = keccak256("MAGICATS_HANDLER");
     bytes32 public constant KEEPER = keccak256("KEEPER");
     bytes32 public constant STRATEGIST = keccak256("STRATEGIST");
     bytes32 public constant GUARDIAN = keccak256("GUARDIAN");
@@ -132,7 +133,7 @@ abstract contract ReaperBaseStrategyv3 is
         _grantRole(ADMIN, _multisigRoles[1]);
         _grantRole(GUARDIAN, _multisigRoles[2]);
 
-        cascadingAccess = [DEFAULT_ADMIN_ROLE, ADMIN, GUARDIAN, STRATEGIST, KEEPER];
+        cascadingAccess = [DEFAULT_ADMIN_ROLE, ADMIN, GUARDIAN, STRATEGIST, MAGICATS_HANDLER, KEEPER];
         clearUpgradeCooldown();
         harvestLog.push(Harvest({timestamp: block.timestamp, vaultSharePrice: IVault(_vault).getPricePerFullShare()}));
     }

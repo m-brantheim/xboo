@@ -10,6 +10,8 @@ import "./interfaces/IBooMirrorWorld.sol";
 import "./interfaces/IStrategy.sol";
 import "./interfaces/IVault.sol";
 
+import "hardhat/console.sol";
+
 contract magicatsHandler is IERC721Receiver, ERC721Enumerable {
     address aceLab = 0x399D73bB7c83a011cD85DF2a3CdF997ED3B3439f;
     address public constant Magicats = 0x2aB5C606a5AA2352f8072B9e2E8A213033e2c4c9;
@@ -57,9 +59,9 @@ contract magicatsHandler is IERC721Receiver, ERC721Enumerable {
 
             _safeMint(msg.sender, magicatsIds[i]);
             //will seperate these in the future, or possibly combine them
-            IERC721(Magicats).transferFrom(msg.sender, address(this), magicatsIds[i]);
+            IERC721(Magicats).safeTransferFrom(msg.sender, address(this), magicatsIds[i]);
 
-            IERC721(Magicats).transferFrom(address(this), strategy, magicatsIds[i]);
+            IERC721(Magicats).safeTransferFrom(address(this), strategy, magicatsIds[i]);
         }
     }
 
@@ -73,7 +75,7 @@ contract magicatsHandler is IERC721Receiver, ERC721Enumerable {
             }else if (IERC721(Magicats).ownerOf(magicatsIds[i]) == aceLab){
                 _burn(magicatsIds[i]);
                 uint[] memory empty;
-                uint[] memory unstake;
+                uint[] memory unstake = new uint[](1);
                 unstake[0] = magicatsIds[i]; //there is probably a better way to do this
                 _updateStakedMagicats(MagicatIdToStakedPid[magicatsIds[i]],empty, unstake );
                 IERC721(Magicats).transferFrom(strategy, msg.sender, magicatsIds[i]);
@@ -150,7 +152,7 @@ contract magicatsHandler is IERC721Receiver, ERC721Enumerable {
 
     function getDepositableMagicats(address owner) external view returns (uint [] memory){
         uint256 balance = IMagicat(Magicats).balanceOf(owner);
-        uint256[] memory ids;
+        uint256[] memory ids = new uint[](balance);
         for(uint i = 0; i < balance; i++){
             ids[i] = IMagicat(Magicats).tokenOfOwnerByIndex(owner, i);
         }
@@ -160,9 +162,11 @@ contract magicatsHandler is IERC721Receiver, ERC721Enumerable {
 
     function getDepositedMagicats(address owner) external view returns (uint [] memory){
         uint256 balance = ERC721.balanceOf(owner);
+        console.log("found %s nfts", balance);
         uint256[] memory ids;
          for(uint i = 0; i < balance; i++){
             ids[i] = ERC721Enumerable.tokenOfOwnerByIndex(owner, i);
+            console.log("ids of i: %s, is set to %s",i, ids[i]);
         }
 
         return ids;

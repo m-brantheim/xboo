@@ -47,8 +47,6 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
     address public constant currentAceLab = 0x399D73bB7c83a011cD85DF2a3CdF997ED3B3439f;
     address public constant currentMagicats = 0x2aB5C606a5AA2352f8072B9e2E8A213033e2c4c9;
     address public magicatsHandler;
-    bytes32 public constant MAGICATS_HANDLER = keccak256("MAGICATS_HANDLER");
-    
     address public aceLab;
     address public Magicats;
 
