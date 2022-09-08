@@ -1,14 +1,15 @@
 async function main() {
-  const strategyAddress = "0xB62100d94436f53a87516f1aa3Cf42f8A96Ae049";
+  const strategyAddress = "TODO";
 
   const Strategy = await ethers.getContractFactory("ReaperAutoCompoundXBoo");
   const strategy = Strategy.attach(strategyAddress);
 
-  const YOSHI_ID = 18;
+  const ORBS_ID = 5;
+  const ORBS = "0x3E01B7E242D5AF8064cB9A8F9468aC0f8683617c";
+  const USDC = "0x04068DA6C83AFCFA0e13ba15A6696662335D5B75";
   const WFTM = "0x21be370d5312f44cb42ce377bc9b8a0cef1a4c83";
-  const YOSHI = "0x3dc57B391262e3aAe37a08D91241f9bA9d58b570";
 
-  const tx1 = await strategy.addUsedPool(YOSHI_ID, [YOSHI, WFTM]);
+  const tx1 = await strategy.setRoute(ORBS_ID, [ORBS, USDC, WFTM]);
   await tx1.wait();
   console.log("Pools added to strategy");
 }
