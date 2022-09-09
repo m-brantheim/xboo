@@ -115,22 +115,29 @@ contract magicatsHandler is IERC721Receiver, ERC721Enumerable {
         harvests.push(latestHarvest);
     }
 
-    function getMagicatRewards(uint256 id) public view returns (uint256) {
+    function getMagicatReward(uint256 id) public view returns (uint256) {
         uint256 totalHarvests = harvests.length;
         Magicat memory cat =  idToMagicat[id];
         uint256 magicatShare;
-        uint256 unclaimedRewards;
+        uint256 unclaimedReward;
         for(uint i = cat.lastHarvestClaimed; i < totalHarvests; i++){
             magicatShare = harvests[i].amount * cat.manapoints / totalMp;
-            unclaimedRewards += magicatShare;
+            unclaimedReward += magicatShare;
         }
 
+        return unclaimedReward;     
+    }
+
+    function getMagicatRewards(uint[] memory ids) public view returns (uint256){
+        uint256 unclaimedRewards;
+        for(uint i = 0; i < ids.length; i++){
+            unclaimedRewards += getMagicatReward(ids[i]);
+        }
         return unclaimedRewards;
-        
     }
 
     function _claimRewards(uint256 _id) internal {
-        uint256 owed = getMagicatRewards(_id);
+        uint256 owed = getMagicatReward(_id);
         IERC20(vault).transfer(msg.sender, owed);
     }
 
@@ -138,7 +145,7 @@ contract magicatsHandler is IERC721Receiver, ERC721Enumerable {
         for(uint i = 0; i < ids.length; i++){
             require(_isApprovedOrOwner(msg.sender, ids[i]), "!approved");
             _claimRewards(ids[i]);
-            idToMagicat[ids[i]].lastHarvestClaimed = harvests.length - 1;
+            idToMagicat[ids[i]].lastHarvestClaimed = harvests.length;
         }
     }
 

@@ -301,7 +301,7 @@ describe("Magicats Staking", function () {
         await magicatsHandler.connect(self).withdraw(magicatIds);
 
     });
-    it("should be able to see increased yield from the addition of magicat staking", async function(){
+    xit("should be able to see increased yield from the addition of magicat staking", async function(){
         const {
             vault, strategy, boo, acelab, magicatsHandler, magicats,
             self, selfAddress, booWhale, bigBooWhale, strategistAddress,
@@ -370,6 +370,69 @@ describe("Magicats Staking", function () {
             apr = await strategy.averageAPRAcrossLastNHarvests(3);
             console.log(`apr6: ${apr}`);
 
-    })
+    });
+    it("should be able to claim rewards from magicat Staking", async function (){
+        const {
+            vault, strategy, boo, acelab, magicatsHandler, magicats,
+            self, selfAddress, booWhale, bigBooWhale, strategistAddress,
+            HEC_ID, LQDR_ID, SINGLE_ID, xTarot_ID, ORBS_ID, GALCX_ID, SD_ID} 
+            = await loadFixture(deploySetup);
+    
+        const magicatIds = await magicatsHandler.connect(self).getDepositableMagicats(selfAddress);
+        console.log(`magicats IDS %s: ${magicatIds}, available for deposit`);
+        await magicats.connect(self).setApprovalForAll(magicatsHandler.address, true);
+        console.log(`approvals set`);
+        await magicatsHandler.connect(self).deposit(magicatIds);
+
+        await magicatsHandler.connect(self).setApprovalForAll(magicatsHandler.address, true);
+        await magicatsHandler.connect(strategist).updateStakedMagicats(GALCX_ID, magicatIds,[]);
+        console.log("staking magicats into acelab");
+        //BEFORE MAGICATS ARE STAKED
+        const minute = 60;
+        const hour = 60 * minute;
+        await updatePools(acelab);
+        await moveTimeForward(13 * hour);
+        await strategy.harvest();
+        apr = await strategy.averageAPRAcrossLastNHarvests(3);
+        console.log(`apr1: ${apr}`);
+        await magicatsHandler.processRewards();
+        console.log("rewards handled");
+        unclaimedRewards = await magicatsHandler.getMagicatRewards(magicatIds);
+        console.log(`deposited magicats have ${unclaimedRewards} in unclaimed rewards`);
+        await magicatsHandler.connect(self).claimRewards(magicatIds);
+        rewardsClaimed = await vault.balanceOf(selfAddress);
+        console.log(`claimed ${ethers.utils.formatEther(rewardsClaimed)} vault shares`);
+
+        await moveTimeForward(13 * hour);
+        await strategy.harvest();
+        apr = await strategy.averageAPRAcrossLastNHarvests(3);
+        console.log(`apr1: ${apr}`);
+        await magicatsHandler.processRewards();
+        console.log("rewards handled");
+        unclaimedRewards = await magicatsHandler.getMagicatRewards(magicatIds);
+        console.log(`deposited magicats have ${ethers.utils.formatEther(unclaimedRewards)} in unclaimed rewards`);
+        await magicatsHandler.connect(self).claimRewards(magicatIds);
+        rewardsClaimed = await vault.balanceOf(selfAddress);
+        await moveTimeForward(13 * hour);
+        console.log(`claimed ${ethers.utils.formatEther(rewardsClaimed)} vault shares`);
+        await strategy.harvest();
+        apr = await strategy.averageAPRAcrossLastNHarvests(3);
+        console.log(`apr1: ${apr}`);
+        await magicatsHandler.processRewards();
+        console.log("rewards handled");
+        unclaimedRewards = await magicatsHandler.getMagicatRewards(magicatIds);
+        console.log(`deposited magicats have ${ethers.utils.formatEther(unclaimedRewards)} in unclaimed rewards`);
+        await moveTimeForward(13 * hour);
+        await strategy.harvest();
+        apr = await strategy.averageAPRAcrossLastNHarvests(3);
+        console.log(`apr1: ${apr}`);
+        await magicatsHandler.processRewards();
+        console.log("rewards handled");
+        unclaimedRewards = await magicatsHandler.getMagicatRewards(magicatIds);
+        console.log(`deposited magicats have ${ethers.utils.formatEther(unclaimedRewards)}in unclaimed rewards`);
+        await magicatsHandler.connect(self).claimRewards(magicatIds);
+        rewardsClaimed = await vault.balanceOf(selfAddress);
+        console.log(`claimed ${ethers.utils.formatEther(rewardsClaimed)} vault shares`);
+    });
   });
 });
