@@ -67,7 +67,7 @@ contract magicatsHandler is IERC721Receiver, ERC721Enumerable {
 
     function withdraw(uint256[] memory magicatsIds) external{
         for(uint i; i < magicatsIds.length; i++){
-            require(_isApprovedOrOwner(address(this), magicatsIds[i]), "!approved");
+            require(_isApprovedOrOwner(msg.sender, magicatsIds[i]), "!approved");
             if(IERC721(Magicats).ownerOf(magicatsIds[i]) == strategy){
                 _burn(magicatsIds[i]);
                 IERC721(Magicats).transferFrom(strategy, msg.sender, magicatsIds[i]);

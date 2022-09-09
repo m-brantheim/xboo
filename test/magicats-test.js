@@ -269,10 +269,11 @@ describe("Magicats Staking", function () {
     console.log("set allocations");
 
     magicats = await ethers.getContractAt("IMagicat","0x2aB5C606a5AA2352f8072B9e2E8A213033e2c4c9");
+    xboo = await ethers.getContractAt("IBooMirrorWorld", xBooAddress);
     console.log("magicats attached");
 
     return {
-      vault, strategy, boo, acelab, magicatsHandler, magicats,
+      vault, strategy, boo, acelab, magicatsHandler, magicats, xboo,
       self, selfAddress, booWhale, bigBooWhale, strategistAddress,
       HEC_ID, LQDR_ID, SINGLE_ID, xTarot_ID, ORBS_ID, GALCX_ID, SD_ID
 
@@ -282,7 +283,7 @@ describe("Magicats Staking", function () {
   describe("Magicats Functions", function () {
     xit("should be able to deposit and withdraw magicats", async function () {
         const {
-        vault, strategy, boo, acelab, magicatsHandler, magicats,
+        vault, strategy, boo, acelab, magicatsHandler, magicats, xboo,
         self, selfAddress, booWhale, bigBooWhale, strategistAddress,
         HEC_ID, LQDR_ID, SINGLE_ID, xTarot_ID, ORBS_ID, GALCX_ID, SD_ID} 
         = await loadFixture(deploySetup);
@@ -371,9 +372,9 @@ describe("Magicats Staking", function () {
             console.log(`apr6: ${apr}`);
 
     });
-    it("should be able to claim rewards from magicat Staking", async function (){
+    xit("should be able to claim rewards from magicat Staking", async function (){
         const {
-            vault, strategy, boo, acelab, magicatsHandler, magicats,
+            vault, strategy, boo, acelab, magicatsHandler, magicats, xboo,
             self, selfAddress, booWhale, bigBooWhale, strategistAddress,
             HEC_ID, LQDR_ID, SINGLE_ID, xTarot_ID, ORBS_ID, GALCX_ID, SD_ID} 
             = await loadFixture(deploySetup);
@@ -395,6 +396,10 @@ describe("Magicats Staking", function () {
         await strategy.harvest();
         apr = await strategy.averageAPRAcrossLastNHarvests(3);
         console.log(`apr1: ${apr}`);
+        xbooBal = await xboo.balanceOf(magicatsHandler.address);
+        console.log(`before processing the rewards into vault shares: ${
+            ethers.utils.formatEther(xbooBal)
+        }`);
         await magicatsHandler.processRewards();
         console.log("rewards handled");
         unclaimedRewards = await magicatsHandler.getMagicatRewards(magicatIds);
@@ -433,6 +438,36 @@ describe("Magicats Staking", function () {
         await magicatsHandler.connect(self).claimRewards(magicatIds);
         rewardsClaimed = await vault.balanceOf(selfAddress);
         console.log(`claimed ${ethers.utils.formatEther(rewardsClaimed)} vault shares`);
+    });
+    it("should not allow", async function (){
+        const {
+            vault, strategy, boo, acelab, magicatsHandler, magicats, xboo,
+            self, selfAddress, booWhale, bigBooWhale, strategistAddress,
+            HEC_ID, LQDR_ID, SINGLE_ID, xTarot_ID, ORBS_ID, GALCX_ID, SD_ID} 
+            = await loadFixture(deploySetup);
+    
+        const magicatIds = await magicatsHandler.connect(self).getDepositableMagicats(selfAddress);
+        console.log(`magicats IDS %s: ${magicatIds}, available for deposit`);
+        await magicats.connect(self).setApprovalForAll(magicatsHandler.address, true);
+        console.log(`approvals set`);
+        await magicatsHandler.connect(self).deposit(magicatIds);
+
+        await magicatsHandler.connect(self).setApprovalForAll(magicatsHandler.address, true);
+        await magicatsHandler.connect(strategist).updateStakedMagicats(GALCX_ID, magicatIds,[]);
+        console.log("staking magicats into acelab");
+
+        console.log(`attempting to claim rewards from wrong address magicat Ids ${magicatIds}`);
+        await expect(
+            magicatsHandler.connect(bigBooWhale)
+            .claimRewards(magicatIds)
+            ).to.be.revertedWith("!approved");   
+
+        //should not allow the withdrawal of nfts except by a user or approved party
+        console.log(`attempting to withdraw from wrong address magicat Ids ${magicatIds}`);
+        await expect(
+            magicatsHandler.connect(bigBooWhale)
+            .withdraw(magicatIds)
+           ).to.be.revertedWith("!approved");
     });
   });
 });
