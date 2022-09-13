@@ -3,6 +3,7 @@ const hre = require("hardhat");
 const chai = require("chai");
 const { solidity, loadFixture } = require("ethereum-waffle");
 const { ethers } = require("hardhat");
+const { assert } = require("chai");
 chai.use(solidity);
 const { expect } = chai;
 
@@ -446,6 +447,8 @@ describe("Magicats Staking", function () {
             HEC_ID, LQDR_ID, SINGLE_ID, xTarot_ID, ORBS_ID, GALCX_ID, SD_ID} 
             = await loadFixture(deploySetup);
     
+        numNFTsBefore = await magicats.connect(self).balanceOf(selfAddress);
+
         const magicatIds = await magicatsHandler.connect(self).getDepositableMagicats(selfAddress);
         console.log(`magicats IDS %s: ${magicatIds}, available for deposit`);
         await magicats.connect(self).setApprovalForAll(magicatsHandler.address, true);
@@ -461,13 +464,21 @@ describe("Magicats Staking", function () {
             magicatsHandler.connect(bigBooWhale)
             .claimRewards(magicatIds)
             ).to.be.revertedWith("!approved");   
-
+        
         //should not allow the withdrawal of nfts except by a user or approved party
         console.log(`attempting to withdraw from wrong address magicat Ids ${magicatIds}`);
         await expect(
             magicatsHandler.connect(bigBooWhale)
             .withdraw(magicatIds)
            ).to.be.revertedWith("!approved");
+        
+        magicatsHandler.connect(self)
+        .withdraw(magicatIds)
+
+        numNFTsAfter = await magicats.connect(self).balanceOf(selfAddress);
+        expect(
+            await numNFTsAfter.to.equal(numNFTsBefore)
+        );
     });
   });
 });

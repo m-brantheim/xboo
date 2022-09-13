@@ -7,6 +7,7 @@ import "./interfaces/IUniswapRouterETH.sol";
 import "./interfaces/IPaymentRouter.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/math/SafeMathUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/math/MathUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/math/SignedSafeMathUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721ReceiverUpgradeable.sol";
@@ -216,18 +217,32 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
         IAceLab(aceLab).withdraw(_poolId, _xBooAmount);
     }
 
-    function setXBooAllocations(uint256[] calldata poolIds, uint256[] calldata amounts) external {
+    function setXBooAllocations(
+        uint256[] calldata withdrawPoolIds, 
+        uint256[] calldata withdrawAmounts, 
+        uint256[] calldata depositPoolIds, 
+        uint256[] calldata amounts) 
+    external {
         _atLeastRole(KEEPER);
-        require(poolIds.length == amounts.length);
-        require(poolIds.length <= IAceLab(aceLab).poolLength());
-        uint256 currentAllocation;
-        for(uint i = 0; i < poolIds.length; i++){
-            (currentAllocation,,,) = IAceLab(aceLab).userInfo(i, address(this));
-            _aceLabWithdraw(i, currentAllocation);
+        require(
+            depositPoolIds.length == amounts.length &&
+            withdrawPoolIds.length == withdrawAmounts.length
+        );
+        require(
+            depositPoolIds.length <= IAceLab(aceLab).poolLength() &&
+            withdrawPoolIds.length <= IAceLab(aceLab).poolLength()
+        );
+        for(uint i = 0; i < withdrawPoolIds.length; i++){
+            _aceLabWithdraw(withdrawPoolIds[i], withdrawAmounts[i]);
         }
 
-        for(uint i = 0; i < poolIds.length; i++){
-            _aceLabDeposit(poolIds[i], amounts[i]);
+        for(uint i = 0; i < depositPoolIds.length; i++){
+            uint256 xBooAvailable = IERC20Upgradeable(xBoo).balanceOf(address(this));
+            if (xBooAvailable == 0) {
+                return;
+            }
+            uint256 depositAmount = MathUpgradeable.min(xBooAvailable, amounts[i]);
+            _aceLabDeposit(depositPoolIds[i], depositAmount);
         }
     }
 
