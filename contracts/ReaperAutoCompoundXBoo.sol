@@ -261,7 +261,6 @@ contract ReaperAutoCompoundXBoov2 is
     function _harvestCore() internal override returns (uint256 callerFee) {
         _claimAllRewards();
         catBoostPercentage = _processRewards();
-        console.log("returned catBoostPercentage was %s", catBoostPercentage);
         callerFee = _chargeFees();
         _swapWftmToBoo();
         _enterXBoo();
@@ -304,11 +303,6 @@ contract ReaperAutoCompoundXBoov2 is
 
                 if (magicBoost[i] != 0) {
                     catBoostPercent = (magicBoost[i] * 10000) / tokenBal;
-                    console.log(
-                        "catBoost percent for index %s is %s",
-                        i,
-                        catBoostPercent
-                    );
                 } else {
                     catBoostPercent = 0;
                 }
@@ -325,15 +319,9 @@ contract ReaperAutoCompoundXBoov2 is
 
                 wftBalAfter = IERC20Upgradeable(wftm).balanceOf(address(this));
                 totalHarvest += (wftBalAfter - wftmBalBefore);
-                console.log(
-                    "wftm harvest for poolId: %s is %s",
-                    i,
-                    (wftBalAfter - wftmBalBefore)
-                );
                 catBoostWftm =
                     ((wftBalAfter - wftmBalBefore) * catBoostPercent) /
                     10000;
-                console.log("of that, catBoostWFTM was %s", catBoostWftm);
                 catBoostTotal += catBoostWftm;
                 magicBoost[i] = 0;
             }
@@ -423,12 +411,7 @@ contract ReaperAutoCompoundXBoov2 is
         uint256 magicatsCut = (xBooBalance * percentage) / PERCENT_DIVISOR;
         uint256 magicatPayout = (magicatsCut * catProvisionFee) /
             PERCENT_DIVISOR;
-        console.log(
-            "xBooBalance = %s \n magicatsCut = %s \n magicatPayout = %s",
-            xBooBalance,
-            magicatsCut,
-            magicatPayout
-        );
+
         IERC20Upgradeable(xBoo).transfer(magicatsHandler, magicatPayout);
     }
 
