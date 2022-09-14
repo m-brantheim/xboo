@@ -7,6 +7,7 @@ import "./interfaces/IUniswapRouterETH.sol";
 import "./interfaces/IPaymentRouter.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/math/SafeMathUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/math/MathUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/math/SignedSafeMathUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721ReceiverUpgradeable.sol";
@@ -50,8 +51,6 @@ contract ReaperAutoCompoundXBoov2 is
     address public constant currentMagicats =
         0x2aB5C606a5AA2352f8072B9e2E8A213033e2c4c9;
     address public magicatsHandler;
-    bytes32 public constant MAGICATS_HANDLER = keccak256("MAGICATS_HANDLER");
-
     address public aceLab;
     address public Magicats;
 
@@ -129,6 +128,7 @@ contract ReaperAutoCompoundXBoov2 is
         currentPoolId = 5;
         totalPoolBalance = 0;
         wftmToBooPaths = [wftm, address(Boo)];
+        catProvisionFee = 1500;
 
         _giveAllowances();
     }
@@ -218,23 +218,36 @@ contract ReaperAutoCompoundXBoov2 is
     }
 
     function setXBooAllocations(
-        uint256[] calldata poolIds,
+        uint256[] calldata withdrawPoolIds,
+        uint256[] calldata withdrawAmounts,
+        uint256[] calldata depositPoolIds,
         uint256[] calldata amounts
     ) external {
         _atLeastRole(KEEPER);
-        require(poolIds.length == amounts.length);
-        require(poolIds.length <= IAceLab(aceLab).poolLength());
-        uint256 currentAllocation;
-        for (uint256 i = 0; i < poolIds.length; i++) {
-            (currentAllocation, , , ) = IAceLab(aceLab).userInfo(
-                i,
-                address(this)
-            );
-            _aceLabWithdraw(i, currentAllocation);
+        require(
+            depositPoolIds.length == amounts.length &&
+                withdrawPoolIds.length == withdrawAmounts.length
+        );
+        require(
+            depositPoolIds.length <= IAceLab(aceLab).poolLength() &&
+                withdrawPoolIds.length <= IAceLab(aceLab).poolLength()
+        );
+        for (uint256 i = 0; i < withdrawPoolIds.length; i++) {
+            _aceLabWithdraw(withdrawPoolIds[i], withdrawAmounts[i]);
         }
 
-        for (uint256 i = 0; i < poolIds.length; i++) {
-            _aceLabDeposit(poolIds[i], amounts[i]);
+        for (uint256 i = 0; i < depositPoolIds.length; i++) {
+            uint256 xBooAvailable = IERC20Upgradeable(xBoo).balanceOf(
+                address(this)
+            );
+            if (xBooAvailable == 0) {
+                return;
+            }
+            uint256 depositAmount = MathUpgradeable.min(
+                xBooAvailable,
+                amounts[i]
+            );
+            _aceLabDeposit(depositPoolIds[i], depositAmount);
         }
     }
 
@@ -248,10 +261,12 @@ contract ReaperAutoCompoundXBoov2 is
     function _harvestCore() internal override returns (uint256 callerFee) {
         _claimAllRewards();
         catBoostPercentage = _processRewards();
+        console.log("returned catBoostPercentage was %s", catBoostPercentage);
         callerFee = _chargeFees();
         _swapWftmToBoo();
         _enterXBoo();
         _payMagicatDepositers(catBoostPercentage);
+        _aceLabDeposit(currentPoolId, xBoo.balanceOf(address(this)));
     }
 
     function _claimAllRewards() internal {
@@ -260,7 +275,6 @@ contract ReaperAutoCompoundXBoov2 is
         for (uint256 i = 0; i < poolLength; i++) {
             (pending, ) = IAceLab(aceLab).pendingRewards(i, address(this));
             if (pending != 0) {
-                _writeCatDebt(i);
                 _aceLabWithdraw(i, 0);
             }
         }
@@ -290,6 +304,11 @@ contract ReaperAutoCompoundXBoov2 is
 
                 if (magicBoost[i] != 0) {
                     catBoostPercent = (magicBoost[i] * 10000) / tokenBal;
+                    console.log(
+                        "catBoost percent for index %s is %s",
+                        i,
+                        catBoostPercent
+                    );
                 } else {
                     catBoostPercent = 0;
                 }
@@ -306,18 +325,24 @@ contract ReaperAutoCompoundXBoov2 is
 
                 wftBalAfter = IERC20Upgradeable(wftm).balanceOf(address(this));
                 totalHarvest += (wftBalAfter - wftmBalBefore);
-
+                console.log(
+                    "wftm harvest for poolId: %s is %s",
+                    i,
+                    (wftBalAfter - wftmBalBefore)
+                );
                 catBoostWftm =
                     ((wftBalAfter - wftmBalBefore) * catBoostPercent) /
                     10000;
+                console.log("of that, catBoostWFTM was %s", catBoostWftm);
                 catBoostTotal += catBoostWftm;
+                magicBoost[i] = 0;
             }
         }
 
         if (catBoostTotal == 0) {
             return 0;
         }
-        return (catBoostTotal / totalHarvest) * 10000;
+        return ((catBoostTotal * 10000) / totalHarvest);
     }
 
     /**
@@ -396,7 +421,15 @@ contract ReaperAutoCompoundXBoov2 is
     function _payMagicatDepositers(uint256 percentage) internal {
         uint256 xBooBalance = xBoo.balanceOf(address(this));
         uint256 magicatsCut = (xBooBalance * percentage) / PERCENT_DIVISOR;
-        IERC20Upgradeable(xBoo).transfer(magicatsHandler, magicatsCut);
+        uint256 magicatPayout = (magicatsCut * catProvisionFee) /
+            PERCENT_DIVISOR;
+        console.log(
+            "xBooBalance = %s \n magicatsCut = %s \n magicatPayout = %s",
+            xBooBalance,
+            magicatsCut,
+            magicatPayout
+        );
+        IERC20Upgradeable(xBoo).transfer(magicatsHandler, magicatPayout);
     }
 
     function _writeCatDebt(uint256 _poolId) internal {
@@ -567,6 +600,11 @@ contract ReaperAutoCompoundXBoov2 is
 
     function retireStrat() external {
         vault;
+    }
+
+    function updateCatProvisionFee(uint256 _fee) external {
+        _atLeastRole(STRATEGIST);
+        catProvisionFee = _fee;
     }
 
     function setRoute(uint256 poolId, address[] calldata routes) external {

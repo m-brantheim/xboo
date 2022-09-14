@@ -58,6 +58,8 @@ interface IAceLab {
     function withdraw(uint _pid, uint _amount, uint[] memory tokenIDs) external;
 
     function rarityOf(uint256) external returns (uint256);
+    
+    function getStakedMagicats(uint256, address) external returns (uint[] memory);
 
     // Withdraw tokens.
     function withdraw(uint256 _pid, uint256 _amount) external;
