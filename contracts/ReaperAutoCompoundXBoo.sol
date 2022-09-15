@@ -168,8 +168,13 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
             
             uint poolLength = IAceLab(aceLab).poolLength();
                 // if its an inconsequential amount <5%, then withdraw from first pool, otherwise withdraw equally from all pools
-            uint256 withdrawPercentage = (_amount - BooBalance) * 10000 / totalPoolBalance;
-           
+            console.log(
+            "_amount is %s\nBooBalance is %s\nbalanceofPool() is %s\n",
+            _amount,BooBalance,balanceOfPool()
+            );
+            
+            uint256 withdrawPercentage = (_amount - BooBalance) * 10000 / balanceOfPool();
+            console.log("withdraw Percentage %s", withdrawPercentage);           
             for(uint i = 0; i < poolLength; i++){
                 if(poolxBooBalance[i] != 0){
                     _aceLabWithdraw(

@@ -256,7 +256,7 @@ describe("Vaults", function () {
     await strategy.updateMagicatsHandler(selfAddress);
 
     return {
-      vault, strategy, boo, acelab, self, booWhale, bigBooWhale, strategistAddress,
+      vault, strategy, boo, acelab, self, booWhale, bigBooWhale, strategistAddress,bigBooWhaleAddress,
       HEC_ID, LQDR_ID, SINGLE_ID, xTarot_ID, ORBS_ID, GALCX_ID, SD_ID
     }
   }
@@ -630,11 +630,13 @@ describe("Vaults", function () {
       }
     });
     it("should include xBoo gains in yield calculation", async function () {
-      const {vault, strategy, boo, acelab, self, booWhale, bigBooWhale, strategistAddres,
+      const {vault, strategy, boo, acelab, self, booWhale, bigBooWhale, strategistAddres, bigBooWhaleAddress,
         HEC_ID, LQDR_ID, SINGLE_ID, xTarot_ID, ORBS_ID, GALCX_ID, SD_ID} = await loadFixture(deploySetup);
       const bigWhaleDepositAmount = ethers.utils.parseEther("100000");
       await vault.connect(bigBooWhale).deposit(bigWhaleDepositAmount);
       console.log("bigdeposit");
+      shares = await vault.balanceOf(bigBooWhaleAddress);
+      console.log(`minted ${shares} shares for deposit of ${bigWhaleDepositAmount} boo`);
       const hecAlloc = 2000
       const lqdrAlloc = 0;
       const SingleAlloc = 0; //underperforming in tests
@@ -642,7 +644,7 @@ describe("Vaults", function () {
       const galcxalloc = 1500
       const SDAlloc = 1500
       const xTarotAlloc = 2000;
-      balance = await strategy.totalPoolBalance();
+      balance = await strategy.balanceOfPool();
       console.log(balance.toString());
       const newAlloc = [
         (balance).mul(hecAlloc).div("10000"), 
@@ -651,7 +653,8 @@ describe("Vaults", function () {
         (balance).mul(galcxalloc).div("10000"), 
         (balance).mul(SDAlloc).div("10000")];
       const pids = [HEC_ID, xTarot_ID, ORBS_ID, GALCX_ID, SD_ID];
-      await strategy.setXBooAllocations(pids, newAlloc);
+      const emptyArray = [];
+      await strategy.setXBooAllocations(emptyArray, emptyArray, pids, newAlloc);
       console.log("set allocations");
 
       const minute = 60;
@@ -678,6 +681,12 @@ describe("Vaults", function () {
       await strategy.harvest();
       apr = await strategy.averageAPRAcrossLastNHarvests(6);
       console.log(`apr: ${apr}`);
+      
+      preW = await boo.balanceOf(bigBooWhaleAddress);
+      console.log(preW);
+      await vault.connect(bigBooWhale).withdrawAll();
+      postW = await boo.balanceOf(bigBooWhaleAddress);
+      console.log(postW);
     });
     xit("should correctly calculate APR even if harvests are more frequent than log cadence", async function () {
       const deposit = ethers.utils.parseEther("1");
