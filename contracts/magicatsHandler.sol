@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPLv3
+
 pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
@@ -10,7 +12,7 @@ import "./interfaces/IBooMirrorWorld.sol";
 import "./interfaces/IStrategy.sol";
 import "./interfaces/IVault.sol";
 
-import "hardhat/console.sol";
+import "forge-std/console.sol";
 
 contract magicatsHandler is IERC721Receiver, ERC721Enumerable {
     address aceLab = 0x399D73bB7c83a011cD85DF2a3CdF997ED3B3439f;

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: AGPLv3
 
 import "./abstract/ReaperBaseStrategy.sol";
 import "./interfaces/IAceLab.sol";
@@ -12,7 +12,7 @@ import "@openzeppelin/contracts-upgradeable/utils/math/SignedSafeMathUpgradeable
 import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721ReceiverUpgradeable.sol";
 
-import "hardhat/console.sol";
+import "forge-std/Test.sol";
 
 pragma solidity 0.8.9;
 
@@ -194,19 +194,8 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
             BooBalance = _amount;
         }
 
-        if (useSecurityFee) {
-            uint256 withdrawFee = BooBalance.mul(securityFee).div(
-                PERCENT_DIVISOR
-            );
+        Boo.safeTransfer(vault, BooBalance);
 
-            Boo.safeTransfer(
-                vault,
-                BooBalance.sub(withdrawFee)
-            );
-        } else {
-            Boo.safeTransfer(vault, BooBalance);
-            useSecurityFee = true;
-        }
     }
 
     /**
@@ -231,11 +220,13 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
         _atLeastRole(KEEPER);
         require(
             depositPoolIds.length == amounts.length &&
-            withdrawPoolIds.length == withdrawAmounts.length
+            withdrawPoolIds.length == withdrawAmounts.length,
+            "pools not same length"
         );
         require(
             depositPoolIds.length <= IAceLab(aceLab).poolLength() &&
-            withdrawPoolIds.length <= IAceLab(aceLab).poolLength()
+            withdrawPoolIds.length <= IAceLab(aceLab).poolLength(),
+            "longer than poolLength"
         );
         for(uint i = 0; i < withdrawPoolIds.length; i++){
             _aceLabWithdraw(withdrawPoolIds[i], withdrawAmounts[i]);
@@ -304,7 +295,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
 
                 if(magicBoost[i] != 0){
                     catBoostPercent = (magicBoost[i] * 10000) / tokenBal;
-                    console.log("catBoost percent for index %s is %s", i, catBoostPercent);
+                    console2.log("catBoost percent for index %s is %s", i, catBoostPercent);
                 }else{
                     catBoostPercent = 0;
                 }
@@ -323,7 +314,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
                 totalHarvest += (wftBalAfter - wftmBalBefore);
                 console.log("wftm harvest for poolId: %s is %s", i, (wftBalAfter - wftmBalBefore));  
                 catBoostWftm = ((wftBalAfter - wftmBalBefore) * catBoostPercent) / 10000;
-                console.log("of that, catBoostWFTM was %s", catBoostWftm);
+                console2.log("of that, catBoostWFTM was %s", catBoostWftm);
                 catBoostTotal += catBoostWftm;
                 magicBoost[i] = 0;
 
@@ -414,7 +405,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
         uint256 xBooBalance = xBoo.balanceOf(address(this));
         uint256 magicatsCut = xBooBalance * percentage / PERCENT_DIVISOR;
         uint256 magicatPayout = magicatsCut * catProvisionFee / PERCENT_DIVISOR;
-        console.log(
+        console2.log(
             "xBooBalance = %s \n magicatsCut = %s \n magicatPayout = %s",
             xBooBalance, magicatsCut, magicatPayout    
         );
