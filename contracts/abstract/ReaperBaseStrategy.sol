@@ -231,7 +231,7 @@ abstract contract ReaperBaseStrategyv3 is
      * @dev Pauses the strat. Deposits become disabled but users can still
      *      withdraw. Guardian and roles with higher privilege can pause.
      */
-    function pause() public override {
+    function pause() public override virtual {
         _atLeastRole(GUARDIAN);
         _pause();
     }
@@ -240,7 +240,7 @@ abstract contract ReaperBaseStrategyv3 is
      * @dev Unpauses the strat. Opens up deposits again and invokes deposit().
      *      Admin and roles with higher privilege can unpause.
      */
-    function unpause() external override {
+    function unpause() external override virtual {
         _atLeastRole(ADMIN);
         _unpause();
         deposit();
