@@ -251,7 +251,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
         callerFee = _chargeFees();
         _swapWftmToBoo();
         _enterXBoo();
-        _payMagicatDepositors(catBoostPercentage);
+        _payMagicatDepositors(catBoostPercentage); // pay magicat depositors first, then enter xboo
         _aceLabDeposit(currentPoolId, xBoo.balanceOf(address(this)));
     }
 
@@ -501,6 +501,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
         IERC721Upgradeable(Magicats).setApprovalForAll(operator, true);
     }
 
+    // do it when setting magicatsHandler
     function approveMagicats() external {
         _atLeastRole(STRATEGIST);
         _approveMagicatsFor(aceLab);
