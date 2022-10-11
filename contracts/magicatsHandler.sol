@@ -13,6 +13,8 @@ import "./interfaces/IBooMirrorWorld.sol";
 import "./interfaces/IStrategy.sol";
 import "./interfaces/IVault.sol";
 
+import "forge-std/Test.sol";
+
 contract MagicatsHandler is AccessControlEnumerable, ERC721Enumerable {
 
     bytes32 public constant KEEPER = keccak256("KEEPER");
@@ -264,7 +266,7 @@ contract MagicatsHandler is AccessControlEnumerable, ERC721Enumerable {
      */
     function getDepositedMagicats(address owner) external view returns (uint [] memory){
         uint256 balance = balanceOf(owner);
-        uint256[] memory ids;
+        uint256[] memory ids = new uint[](balance);
          for(uint i = 0; i < balance; i++){
             ids[i] = tokenOfOwnerByIndex(owner, i);
         }

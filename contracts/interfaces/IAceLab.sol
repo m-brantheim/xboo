@@ -63,6 +63,8 @@ interface IAceLab {
 
     // Withdraw tokens.
     function withdraw(uint256 _pid, uint256 _amount) external;
+    
+    function balanceOf(address) external returns (uint256);
 
     // Withdraw without caring about rewards. EMERGENCY ONLY.
     function emergencyWithdraw(uint256 _pid) external;

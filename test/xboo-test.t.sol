@@ -17,7 +17,7 @@ contract xBooTest is XbooConstants {
     ERC1967Proxy stratProxy;
     
     
-    function setUp() public {
+    function setUp() public virtual {
         vault = new ReaperVaultv1_3(
             address(Boo),
             "XBOO Single Stake Vault",
@@ -67,15 +67,19 @@ contract xBooTest is XbooConstants {
         Boo.transfer(user1, 10000 ether);
         vm.stopPrank();
 
+        vm.startPrank(user1);
+        Boo.approve(address(vault), type(uint256).max);
+        vm.stopPrank();
+
         vm.label(currentAceLab, "aceLab");
         vm.label(currentMagicats, "magicats");
         vm.label(WFTM,"WFTM");
         vm.label(0xa48d959AE2E88f1dAA7D5F611E01908106dE7598, "xBoo");
+        //vm.label(0xb0C9D5851deF8A2Aac4A23031CA2610f8C3483F9, "admin ms");
     }
 
     function testDepositAndWithdraw() public {
         vm.startPrank(user1);
-        Boo.approve(address(vault), type(uint256).max);
         uint256 startingBalance = Boo.balanceOf(user1);
         console2.log("starting balance is : %s", startingBalance);
         vault.deposit(startingBalance);
@@ -95,7 +99,6 @@ contract xBooTest is XbooConstants {
 
     function testDepositAndHarvestAndSeeYield() public {
         vm.startPrank(user1);
-        Boo.approve(address(vault), type(uint256).max);
         uint256 startingBalance = Boo.balanceOf(user1);
         
         console2.log("starting balance is : %s", startingBalance);
@@ -118,6 +121,51 @@ contract xBooTest is XbooConstants {
             console.log("APR is : %s", apr);
         }
     }
+
+    function testPauseAndUnpause() public {
+        vm.prank(0xb0C9D5851deF8A2Aac4A23031CA2610f8C3483F9);
+        XbooStrat.pause();
+        vm.stopPrank();
+        
+        vm.prank(user1);
+        vm.expectRevert(bytes("Pausable: paused"));
+        vault.deposit(100 ether);
+        vm.stopPrank();
+
+        vm.prank(0xb0C9D5851deF8A2Aac4A23031CA2610f8C3483F9);
+        XbooStrat.unpause();
+        vm.stopPrank();
+        
+        vm.prank(user1);
+        vault.deposit(100 ether);
+        vm.stopPrank();
+    }
+
+    function testPanic() public {
+        vm.prank(user1);
+        vault.deposit(100 ether);
+        vm.stopPrank();
+
+        uint256 startingBalance = XbooStrat.balanceOf();
+
+        setAllocations();
+
+        vm.prank(0xb0C9D5851deF8A2Aac4A23031CA2610f8C3483F9);
+        XbooStrat.panic();
+        vm.stopPrank();
+        
+        uint256 strategyInternalAccountingDepositedAmount = XbooStrat.totalPoolBalance();
+        assertEq(strategyInternalAccountingDepositedAmount, 0, "internalAccounting!=0");
+        uint256 strategyAcelabDepositedAmount = IAceLab(currentAceLab).balanceOf(address(XbooStrat));
+        assertEq(strategyInternalAccountingDepositedAmount, strategyAcelabDepositedAmount, "internalAcconting!=actualState");
+
+        uint256 endingBalance = XbooStrat.balanceOf();
+
+        assertGe(endingBalance, startingBalance);
+
+    }
+
+
 
 
 
@@ -162,10 +210,11 @@ contract xBooTest is XbooConstants {
     }
 
     function setAllocations() public{
-        uint hecAlloc = 0;
-        uint orbsAlloc = 10000;
+        uint hecAlloc = 4000;
+        uint orbsAlloc = 0;
         uint galcxAlloc = 0;
-        uint xTarotAlloc = 0;
+        uint xTarotAlloc = 4000;
+        uint lqdrAlloc = 2000;
         uint stratBalance = XbooStrat.balanceOfPool();
         uint length = IAceLab(currentAceLab).poolLength();
         uint[] memory idealAmounts = new uint[](length);
@@ -180,7 +229,7 @@ contract xBooTest is XbooConstants {
             if(i == HEC_ID){
                 idealAmounts[i] = (hecAlloc * stratBalance) / 10000;
             }
-            else if(i == ORBS_ID){
+            else if(i == LQDR_ID){
                 idealAmounts[i] = (orbsAlloc * stratBalance) / 10000;
             }
             else if(i == xTarot_ID){
