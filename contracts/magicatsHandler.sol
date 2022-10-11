@@ -319,7 +319,7 @@ contract MagicatsHandler is AccessControlEnumerable, ERC721Enumerable {
         address,
         uint256,
         bytes memory
-    ) public pure returns (bytes4){
+    ) external pure returns (bytes4){
         return this.onERC721Received.selector;
     }
 

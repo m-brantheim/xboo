@@ -63,8 +63,10 @@ contract xBooTest is XbooConstants {
         vm.label(user1, "user1");
         vm.label(BigBooWhale, "BigBooWhale");
         vm.label(address(Boo), "BooToken");
-        vm.prank(BigBooWhale);
-        Boo.transfer(user1, 1000 ether);
+        vm.startPrank(BigBooWhale);
+        console.log(Boo.balanceOf(BigBooWhale));
+        Boo.transfer(user1, 10000 ether);
+        console.log(Boo.balanceOf(user1));
         vm.stopPrank();
 
         vm.startPrank(user1);
@@ -81,7 +83,7 @@ contract xBooTest is XbooConstants {
     function testDepositAndWithdraw() public {
         vm.startPrank(user1);
         uint256 startingBalance = Boo.balanceOf(user1);
-        console2.log("starting balance is : %s", startingBalance);
+        console.log("starting balance is : %i", startingBalance);
         vault.deposit(startingBalance);
         vm.stopPrank();
         setAllocations();

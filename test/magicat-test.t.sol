@@ -126,8 +126,6 @@ contract magicatTest is xBooTest{
         handler.claimRewards(subArray);
         vm.expectRevert("!approved");
         handler.withdraw(subArray);
-
-
     }
 
     function setMagicatAllocations() public {

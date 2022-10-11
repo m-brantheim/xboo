@@ -1,4 +1,3 @@
-forge test --fork-url https://rpc.ftm.tools --fork-block-number 46900000 --match-test testDepositAndHarvestAndSeeYield -vvvv
+forge test --fork-url https://rpc.ftm.tools --fork-block-number 48900000 --match-contract xBooTest -vvvv
 
-forge test --match-contract magicatTest --fork-url https://rpc.ftm.tools --fork-block-number 46900000
-
+forge test --match-contract magicatTest --match-test testMagicat --fork-url https://rpc.ftm.tools --fork-block-number 48900000 -vvv
