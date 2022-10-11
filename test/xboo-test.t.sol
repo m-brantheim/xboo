@@ -64,7 +64,7 @@ contract xBooTest is XbooConstants {
         vm.label(BigBooWhale, "BigBooWhale");
         vm.label(address(Boo), "BooToken");
         vm.prank(BigBooWhale);
-        Boo.transfer(user1, 10000 ether);
+        Boo.transfer(user1, 1000 ether);
         vm.stopPrank();
 
         vm.startPrank(user1);
@@ -75,7 +75,7 @@ contract xBooTest is XbooConstants {
         vm.label(currentMagicats, "magicats");
         vm.label(WFTM,"WFTM");
         vm.label(0xa48d959AE2E88f1dAA7D5F611E01908106dE7598, "xBoo");
-        //vm.label(0xb0C9D5851deF8A2Aac4A23031CA2610f8C3483F9, "admin ms");
+        vm.label(0xb0C9D5851deF8A2Aac4A23031CA2610f8C3483F9, "admin ms");
     }
 
     function testDepositAndWithdraw() public {
@@ -210,26 +210,26 @@ contract xBooTest is XbooConstants {
     }
 
     function setAllocations() public{
-        uint hecAlloc = 4000;
+        uint hecAlloc = 10000;
         uint orbsAlloc = 0;
         uint galcxAlloc = 0;
-        uint xTarotAlloc = 4000;
-        uint lqdrAlloc = 2000;
+        uint xTarotAlloc = 0;
+        uint lqdrAlloc = 0;
         uint stratBalance = XbooStrat.balanceOfPool();
         uint length = IAceLab(currentAceLab).poolLength();
         uint[] memory idealAmounts = new uint[](length);
         uint[] memory currentAmounts = new uint[](length);
         for(uint i ; i < length; i++){
-            console2.log(i);
             uint temp;
             (temp,,,) = IAceLab(currentAceLab).userInfo(i, address(XbooStrat));
-            //console2.log(temp);
             currentAmounts[i] = temp;
-            //console2.log(currentAmounts[i]);
             if(i == HEC_ID){
                 idealAmounts[i] = (hecAlloc * stratBalance) / 10000;
             }
             else if(i == LQDR_ID){
+                idealAmounts[i] = (lqdrAlloc * stratBalance) / 10000;
+            }
+            else if(i == ORBS_ID){
                 idealAmounts[i] = (orbsAlloc * stratBalance) / 10000;
             }
             else if(i == xTarot_ID){
@@ -241,10 +241,8 @@ contract xBooTest is XbooConstants {
             else{
                 idealAmounts[i] = 0;
             }
-            //console2.log( idealAmounts[i]);
             
         }
-        console.log("after for");
         uint amtWithdraws;
         uint amtDeposits;
         uint[] memory withdrawPoolIds = new uint[](length);

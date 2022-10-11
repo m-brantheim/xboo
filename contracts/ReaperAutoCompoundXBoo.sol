@@ -6,6 +6,7 @@ import "./abstract/ReaperBaseStrategy.sol";
 import "./interfaces/IAceLab.sol";
 import "./interfaces/IBooMirrorWorld.sol";
 import "./interfaces/IUniswapRouterETH.sol";
+import "./interfaces/IMagicatsHandler.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/math/SafeMathUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/math/MathUpgradeable.sol";
@@ -164,7 +165,6 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
             uint256 poolLength = IAceLab(aceLab).poolLength();
 
             uint256 withdrawPercentage = ((_amount - booBalance) * PERCENT_DIVISOR) / balanceOfPool();
-            console.log("withdraw Percentage %s", withdrawPercentage);
             // remove as much as possible from pool before going to
             for (uint256 i = 0; i < poolLength; i++) {
                 if (poolxBooBalance[i] != 0) {
@@ -251,6 +251,9 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
         _payMagicatDepositors(catBoostPercentage);
         _enterXBoo();
         _aceLabDeposit(currentPoolId, xBoo.balanceOf(address(this)));
+        if(magicatsHandler != address(0) && catBoostPercentage != 0){
+            IMagicatsHandler(magicatsHandler).processRewards();
+        }
     }
 
     function _claimAllRewards() internal {
