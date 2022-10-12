@@ -15,9 +15,9 @@ contract productionMigration is XbooConstants {
     ReaperVaultv1_3 vault;
     ERC1967Proxy stratProxy;
 
-    uint oldPPFS;
-    uint oldSupply;
-    uint oldBalance;
+    uint256 oldPPFS;
+    uint256 oldSupply;
+    uint256 oldBalance;
 
     function setUp() public {
         vault = ReaperVaultv1_3(existingVault);
@@ -26,17 +26,17 @@ contract productionMigration is XbooConstants {
         stratIMPL = new ReaperAutoCompoundXBoov2();
         vm.label(address(stratIMPL), "strategy Implementation");
         stratProxy = new ERC1967Proxy(
-            address (stratIMPL),
+            address(stratIMPL),
             "" //args
         );
         vm.label(address(stratProxy), "ERC1967 Proxy: Strategy Proxy");
 
         XbooStrat = ReaperAutoCompoundXBoov2(address(stratProxy));
 
-        address[] memory feeRemitters = new address[](2); 
+        address[] memory feeRemitters = new address[](2);
         feeRemitters[0] = address(0xb0C9D5851deF8A2Aac4A23031CA2610f8C3483F9);
         feeRemitters[1] = address(1);
-        address[] memory strategists = new address[](1); 
+        address[] memory strategists = new address[](1);
 
         address[] memory msRoles = new address[](3);
         msRoles[0] = address(0xb0C9D5851deF8A2Aac4A23031CA2610f8C3483F9);
@@ -47,7 +47,7 @@ contract productionMigration is XbooConstants {
 
         XbooStrat.initialize(address(vault), feeRemitters, strategists, msRoles);
 
-        uint time = block.timestamp;
+        uint256 time = block.timestamp;
         oldPPFS = vault.getPricePerFullShare();
         oldBalance = vault.balance();
         oldSupply = vault.totalSupply();
@@ -55,20 +55,19 @@ contract productionMigration is XbooConstants {
         vault.proposeStrat(address(XbooStrat));
         vm.warp(time + 5 days);
         vault.upgradeStrat();
-
     }
 
     function testProductionUpgradeValidity() public {
-        uint newPPFS = vault.getPricePerFullShare();
-        uint newBalance = vault.balance();
-        uint newSupply = vault.totalSupply();
+        uint256 newPPFS = vault.getPricePerFullShare();
+        uint256 newBalance = vault.balance();
+        uint256 newSupply = vault.totalSupply();
 
         /*console.log("newPPFS: %i\n newBalance: %i\n newSupply: %i", newPPFS, newBalance, newSupply);
         console.log("oldPPFS: %i\n oldBalance: %i\n oldSupply: %i", oldPPFS, oldBalance, oldSupply);
         */
-        console.log("newPPFS: %i\noldPPFS: %i",newPPFS,oldPPFS);
-        console.log("newSupply: %i\noldSupply: %i",newSupply,oldSupply);
-        console.log("newBalance: %i\noldBalance: %i",newBalance,oldBalance);
+        console.log("newPPFS: %i\noldPPFS: %i", newPPFS, oldPPFS);
+        console.log("newSupply: %i\noldSupply: %i", newSupply, oldSupply);
+        console.log("newBalance: %i\noldBalance: %i", newBalance, oldBalance);
 
         assertGe(newPPFS, oldPPFS);
         //assertGe(newBalance, oldBalance); giving some rounding issues by 2 wei for some reason, will look into more

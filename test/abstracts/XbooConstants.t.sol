@@ -6,25 +6,21 @@ import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "../../contracts/ReaperVaultv1_3.sol";
 
 abstract contract XbooConstants is Test {
-    IBooMirrorWorld public constant xBoo =
-        IBooMirrorWorld(0xa48d959AE2E88f1dAA7D5F611E01908106dE7598); // xBoo
+    IBooMirrorWorld public constant xBoo = IBooMirrorWorld(0xa48d959AE2E88f1dAA7D5F611E01908106dE7598); // xBoo
 
-    
-    IERC20Upgradeable public constant Boo =
-        IERC20Upgradeable(0x841FAD6EAe12c286d1Fd18d1d525DFfA75C7EFFE); // Boo
+    IERC20Upgradeable public constant Boo = IERC20Upgradeable(0x841FAD6EAe12c286d1Fd18d1d525DFfA75C7EFFE); // Boo
     address public constant currentAceLab = 0x399D73bB7c83a011cD85DF2a3CdF997ED3B3439f;
     address public constant currentMagicats = 0x2aB5C606a5AA2352f8072B9e2E8A213033e2c4c9;
-    address public constant uniRouter =
-    0xF491e7B69E4244ad4002BC14e878a34207E38c29;
+    address public constant uniRouter = 0xF491e7B69E4244ad4002BC14e878a34207E38c29;
     address user1 = address(1);
 
-    uint HEC_ID = 1;
-    uint LQDR_ID = 2;
-    uint SINGLE_ID = 3;
-    uint xTarot_ID = 4;
-    uint ORBS_ID = 5;
-    uint GALCX_ID = 6;
-    uint SD_ID = 7;
+    uint256 HEC_ID = 1;
+    uint256 LQDR_ID = 2;
+    uint256 SINGLE_ID = 3;
+    uint256 xTarot_ID = 4;
+    uint256 ORBS_ID = 5;
+    uint256 GALCX_ID = 6;
+    uint256 SD_ID = 7;
 
     address WFTM = 0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83;
     address HEC = 0x5C4FDfc5233f935f20D2aDbA572F770c2E377Ab0;
