@@ -253,7 +253,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
     }
 
     function _claimAllRewards() internal {
-        uint256 poolLength = IAceLab(aceLab).poolLength(); // enumerableset of poolIDs deposited in?
+        uint256 poolLength = IAceLab(aceLab).poolLength();
         uint256 pending;
         for (uint256 i = 0; i < poolLength; i = _uncheckedInc(i)) {
             (pending, ) = IAceLab(aceLab).pendingRewards(i, address(this));
@@ -341,8 +341,6 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
      */
     function _chargeFees() internal returns (uint256 callFeeToUser) {
         uint256 WFTMFee = IERC20Upgradeable(WFTM).balanceOf(address(this)).mul(totalFee).div(PERCENT_DIVISOR);
-        // charge in stable
-
         if (WFTMFee != 0) {
            IUniswapRouterETH(UNIROUTER).swapExactTokensForTokensSupportingFeeOnTransferTokens(
                 WFTMFee,
