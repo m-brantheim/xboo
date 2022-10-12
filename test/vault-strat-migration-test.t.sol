@@ -73,6 +73,7 @@ contract productionMigration is XbooConstants {
 
         assertGe(newPPFS, oldPPFS);
         //assertGe(newBalance, oldBalance); giving some rounding issues by 2 wei for some reason, will look into more
+        //I believe this is due to rounding errors of 1 wei going in and out of xboo, 1wei in 1wei out
         assertGe(newSupply, oldSupply);
     }
 }
