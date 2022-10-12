@@ -155,14 +155,54 @@ contract magicatTest is xBooTest{
 
         setMagicatAllocations();
 
+        uint iterations = 10;
+        uint apr;
+        uint time = uint(block.timestamp);
+        for(uint i = 0; i < iterations; i++){
+            vm.warp(time += 13 hours);
+            XbooStrat.harvest();
+        }
+
         vm.startPrank(0xb0C9D5851deF8A2Aac4A23031CA2610f8C3483F9);
-        handler.massUnstakeMagicats();
         XbooStrat.updateMagicatsHandler(address(handler2));
         vm.stopPrank();
 
+        vm.startPrank(magicatOwner);
+        //uint256[] memory ownedMagicats = handler.getDepositableMagicats(magicatOwner);
+        
+        //assert that user can withdraw from old handler (tests claiming as well)
+        handler.withdraw(ownedMagicats);
 
+        //test that depositing into new one works seemlessly
+        IMagicat(currentMagicats).setApprovalForAll(address(handler2), true);
+        handler2.deposit(ownedMagicats); 
+        vm.stopPrank();
 
+        setMagicatAllocations(handler2);
 
+        for(uint i = 0; i < iterations; i++){
+            vm.warp(time += 13 hours);
+            XbooStrat.harvest();
+        }
+        
+        uint userStartingVaultShares = vault.balanceOf(magicatOwner);
+        uint dueRewardsForAllCats = handler2.getMagicatRewards(ownedMagicats);
+
+        vm.startPrank(magicatOwner);
+        //Assert that helper function returns the same amount as the amount claimed
+        handler2.claimRewards(ownedMagicats);
+        uint afterClaimingVaultShares = vault.balanceOf(magicatOwner);
+
+        assertEq(dueRewardsForAllCats, afterClaimingVaultShares - userStartingVaultShares);
+        
+
+        handler2.withdraw(ownedMagicats);
+
+        
+        //assert that redepositing between harvests does not double rewards
+        handler2.deposit(ownedMagicats);
+        uint temp = handler2.getMagicatRewards(ownedMagicats);
+        assertEq(0, temp);
     }
 
     function setMagicatAllocations() public {
@@ -175,6 +215,26 @@ contract magicatTest is xBooTest{
         console.log(stratIds[0]);
         uint[] memory empty = new uint[](0);
         handler.updateStakedMagicats(HEC_ID, stratIds, empty);
+        vm.stopPrank();
+
+        uint stratBalanceAfterAllocation = IMagicat(currentMagicats).balanceOf(address(XbooStrat));
+        uint aceLabBalanceAfterAllocation = IMagicat(currentMagicats).balanceOf(address(currentAceLab));
+        console.log("acelab nft balance before allocation %s", aceLabBalanceBeforeAllocation);
+        console.log("strat nft balance after allocation %s", stratBalanceAfterAllocation);
+        console.log("acelab nft after before allocation %s", aceLabBalanceAfterAllocation);
+        
+    
+    }
+    function setMagicatAllocations(MagicatsHandler _handler) public {
+        uint aceLabBalanceBeforeAllocation = IMagicat(currentMagicats).balanceOf(address(currentAceLab));
+
+        vm.startPrank(0xb0C9D5851deF8A2Aac4A23031CA2610f8C3483F9);
+        _handler.massUnstakeMagicats();
+        uint[] memory stratIds = getStrategyMagicats();
+        console.log(stratIds.length);
+        console.log(stratIds[0]);
+        uint[] memory empty = new uint[](0);
+        _handler.updateStakedMagicats(HEC_ID, stratIds, empty);
         vm.stopPrank();
 
         uint stratBalanceAfterAllocation = IMagicat(currentMagicats).balanceOf(address(XbooStrat));
