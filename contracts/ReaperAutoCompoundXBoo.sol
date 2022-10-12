@@ -434,6 +434,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
             (uint256 amount, , , ) = IAceLab(aceLab).userInfo(index, address(this));
             if (amount != 0) {
                 IAceLab(aceLab).emergencyWithdraw(index);
+                poolXBOOBalance[index] = 0;
             }
         }
         totalPoolBalance = IAceLab(aceLab).balanceOf(address(this));

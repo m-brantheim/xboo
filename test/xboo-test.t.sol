@@ -150,10 +150,15 @@ contract xBooTest is XbooConstants {
         uint256 startingBalance = XbooStrat.balanceOf();
 
         setAllocations();
+        uint256 hecPoolBalanceInitial = XbooStrat.poolXBOOBalance(HEC_ID);
+        assertGt(hecPoolBalanceInitial, 0);
 
         vm.prank(0xb0C9D5851deF8A2Aac4A23031CA2610f8C3483F9);
         XbooStrat.panic();
         vm.stopPrank();
+
+        uint256 hecPoolBalanceAfter = XbooStrat.poolXBOOBalance(HEC_ID);
+        assertEq(hecPoolBalanceAfter, 0);
         
         uint256 strategyInternalAccountingDepositedAmount = XbooStrat.totalPoolBalance();
         assertEq(strategyInternalAccountingDepositedAmount, 0, "internalAccounting!=0");
