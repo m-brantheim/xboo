@@ -74,12 +74,14 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
     mapping(uint256 => uint256) public poolXBOOBalance;
 
     /***
-     * {accCatDebt} - mapping of poolID -> accumulated catDebt between harvest. accounted for each time catDebt is reset (deposit/withdraw/harvest).
-     * {catBOOstPercentage} - variable used in calculating rewards diverted to magicatsHandler, the raw percent the harvest was increased via magicats
-     * {catProvisionFee} - amount of BOOsted harvest diverted to magicatsHandler
+     * {accCatDebt} - mapping of poolID -> accumulated catDebt between harvest.
+     *                Accounted for each time catDebt is reset (deposit/withdraw/harvest).
+     * {catBoostPercentage} - variable used in calculating rewards diverted to magicatsHandler,
+     *                        the raw percent the harvest was increased via magicats
+     * {catProvisionFee} - amount of boosted harvest diverted to magicatsHandler
      */
     mapping(uint256 => uint256) public accCatDebt;
-    uint256 public catBOOstPercentage;
+    uint256 public catBoostPercentage;
     uint256 public catProvisionFee;
 
     //mapping of poolIds to a flag that specifies if the token requires special preperation to turn into WFTM (ex. xTaort)
@@ -167,14 +169,15 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
             }
 
             XBOO.leave(xBooToWithdraw);
+
             booBalance = BOO.balanceOf(address(this));
+            if (booBalance < _amount) {
+                require(_amount - booBalance <= 10, "Withdraw slippage exceeded!");
+                _amount = booBalance;
+            }
         }
 
-        if (booBalance > _amount) {
-            booBalance = _amount;
-        }
-
-        BOO.safeTransfer(vault, booBalance);
+        BOO.safeTransfer(vault, _amount);
     }
 
     /**
@@ -236,11 +239,11 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
      */
     function _harvestCore() internal override returns (uint256 callerFee) {
         _claimAllRewards();
-        catBOOstPercentage = _processRewards();
+        catBoostPercentage = _processRewards();
         callerFee = _chargeFees();
         _swapWFTMToBOO();
-        if (magicatsHandler != address(0) && catBOOstPercentage != 0) {
-            _payMagicatDepositors(catBOOstPercentage);
+        if (magicatsHandler != address(0) && catBoostPercentage != 0) {
+            _payMagicatDepositors(catBoostPercentage);
             IMagicatsHandler(magicatsHandler).processRewards();
         }
         _enterXBOO();
@@ -260,7 +263,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
 
     /**
      * @notice Converts all reward tokens in WFTM and calculates the XBOO % that
-     *         was BOOsted by the cats.
+     *         was boosted by the cats.
      */
     function _processRewards() internal returns (uint256) {
         uint256 poolLength = IAceLab(aceLab).poolLength();
