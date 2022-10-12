@@ -30,5 +30,9 @@ interface IStrategy {
     //updates Total Fee
     function updateTotalFee(uint256 _totalFee) external;
 
-    function updateMagicats(uint poolID, uint[] memory IDsToStake, uint[] memory IDsToUnstake) external;
+    function updateMagicats(
+        uint256 poolID,
+        uint256[] memory IDsToStake,
+        uint256[] memory IDsToUnstake
+    ) external;
 }

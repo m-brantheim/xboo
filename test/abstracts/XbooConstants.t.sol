@@ -3,7 +3,6 @@ pragma solidity ^0.8.0;
 import "forge-std/Test.sol";
 import "../../contracts/ReaperAutoCompoundXBoo.sol";
 import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import "../../contracts/magicatsHandler.sol";
 import "../../contracts/ReaperVaultv1_3.sol";
 
 abstract contract XbooConstants is Test {
