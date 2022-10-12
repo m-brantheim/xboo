@@ -53,7 +53,7 @@ contract magicatTest is xBooTest{
         handler.deposit(ownedMagicats);
         
         //should not be able to deposit already desposited nfts
-        vm.expectRevert("ERC721: token already minted");
+        vm.expectRevert("ERC721: transfer of token that is not own");
         handler.deposit(ownedMagicats);
 
         vm.stopPrank();

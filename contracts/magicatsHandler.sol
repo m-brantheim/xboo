@@ -104,9 +104,9 @@ contract MagicatsHandler is AccessControlEnumerable, ERC721Enumerable {
             totalMp += deposited.manapoints;
             idToMagicat[magicatsIds[i]] = deposited;
 
-            _safeMint(msg.sender, magicatsIds[i]);
-
             IERC721(Magicats).safeTransferFrom(msg.sender, strategy, magicatsIds[i]);
+
+            _safeMint(msg.sender, magicatsIds[i]);
 
         }
     }
@@ -125,19 +125,19 @@ contract MagicatsHandler is AccessControlEnumerable, ERC721Enumerable {
 
             if(IERC721(Magicats).ownerOf(magicatsIds[i]) == strategy){
                 _burn(magicatsIds[i]);
-                IERC721(Magicats).transferFrom(strategy, msg.sender, magicatsIds[i]);
   
             }else if (IERC721(Magicats).ownerOf(magicatsIds[i]) == aceLab){
                 _burn(magicatsIds[i]);
                 uint[] memory unstake = new uint[](1);
                 unstake[0] = magicatsIds[i];
                 _updateStakedMagicats(magicatIdToStakedPid[magicatsIds[i]], new uint256[](0), unstake);
-                IERC721(Magicats).transferFrom(strategy, msg.sender, magicatsIds[i]);
   
             }
 
             delete idToMagicat[magicatsIds[i]];
             delete magicatIdToStakedPid[magicatsIds[i]];
+            IERC721(Magicats).transferFrom(strategy, msg.sender, magicatsIds[i]);
+
         }
     }
 
