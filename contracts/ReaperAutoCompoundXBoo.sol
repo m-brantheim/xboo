@@ -49,8 +49,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
     address public constant MAGICATS = 0x2aB5C606a5AA2352f8072B9e2E8A213033e2c4c9;
     address public magicatsHandler;
     address public aceLab;
-    //@audit remove constants, set values in initialize
-    //@audit check setters for aceLab and Magicats
+
 
     /**
      * @dev Routes we take to swap tokens
@@ -206,22 +205,23 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
         uint256[] calldata depositAmounts
     ) external {
         _atLeastRole(KEEPER);
+        uint256 depositPoolsLength = depositPoolIds.length;
+        uint256 withdrawPoolsLength = withdrawPoolIds.length;
         require(
-            depositPoolIds.length == depositAmounts.length && withdrawPoolIds.length == withdrawAmounts.length,
+            depositPoolsLength == depositAmounts.length && withdrawPoolsLength == withdrawAmounts.length,
             "pools not same length"
         );
         require(
-            depositPoolIds.length <= IAceLab(aceLab).poolLength() &&
-                withdrawPoolIds.length <= IAceLab(aceLab).poolLength(),
+           depositPoolsLength <= IAceLab(aceLab).poolLength() &&
+                withdrawPoolsLength <= IAceLab(aceLab).poolLength(),
             "longer than poolLength"
         );
 
-        // store numpools in local var and use unchecked inc
-        for (uint256 i = 0; i < withdrawPoolIds.length; i = _uncheckedInc(i)) {
+        for (uint256 i = 0; i < withdrawPoolsLength; i = _uncheckedInc(i)) {
             _aceLabWithdraw(withdrawPoolIds[i], withdrawAmounts[i]);
         }
 
-        for (uint256 i = 0; i < depositPoolIds.length; i = _uncheckedInc(i)) {
+        for (uint256 i = 0; i < depositPoolsLength; i = _uncheckedInc(i)) {
             uint256 XBOOAvailable = IERC20Upgradeable(XBOO).balanceOf(address(this));
             if (XBOOAvailable == 0) {
                 return;
@@ -381,6 +381,10 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
         XBOO.enter(BOOBalance);
     }
 
+    /**
+     * @dev internal function to pay out magicat depositors for their contribution in boosting the APRs
+     * @param percentage - the percentage of the harvest (across all rewards) that was contributed by magicat staking  
+     */
     function _payMagicatDepositors(uint256 percentage) internal {
         uint256 BOOBalance = BOO.balanceOf(address(this));
         uint256 magicatsCut = (BOOBalance * percentage) / PERCENT_DIVISOR;
@@ -388,6 +392,10 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
         IERC20Upgradeable(BOO).transfer(magicatsHandler, magicatPayout);
     }
 
+    /**
+     * @dev internal function to update the amount of the boosted rewards, per pool id, that magicat staking grants
+     * @param _poolId - the pool ID to update
+     */
     function _writeCatDebt(uint256 _poolId) internal {
         (, uint256 catReward) = IAceLab(aceLab).pendingRewards(_poolId, address(this));
         accCatDebt[_poolId] += catReward;
@@ -567,6 +575,11 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
         catProvisionFee = _fee;
     }
 
+    /**
+     * @dev external function for strategist to set token trading routes for rewards
+     * @param poolId - the poolId to set the route for
+     * @param routes - the trading route of the token to WFTM
+     */
     function setRoute(uint256 poolId, address[] calldata routes) external {
         _atLeastRole(STRATEGIST);
         poolRewardToWFTMPaths[poolId] = routes;
@@ -579,6 +592,32 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
         unchecked {
             return i + 1;
         }
+    }
+
+    /**
+     * @dev function to update the new AceLab contract, due to sensitivity it is a DEFUALT_ADMIN_ROLE function
+     * @param _aceLab - the new AceLab contract to deposit into
+     * @param _defaultPool - the new default pool in that contract to deposit into
+     */
+    function migrateNewAcelab(address _aceLab, uint256 _defaultPool) external {
+        _atLeastRole(DEFAULT_ADMIN_ROLE);
+        require(_aceLab != address(0), "invalid address");
+        _reclaimWant();
+        _removeAllowances();
+        aceLab = _aceLab;
+        _giveAllowances();
+        setCurrentPoolId(_defaultPool);
+        deposit();
+    }
+
+    /**
+     * @dev public function for setting the default poolId to deposit into
+     * @param _newID - the new default pool ID
+     */
+    function setCurrentPoolId(uint256 _newID) public {
+        _atLeastRole(STRATEGIST);
+        require(_newID < IAceLab(aceLab).poolLength(), "invalid ID");
+        currentPoolId = _newID;
     }
 }
 
