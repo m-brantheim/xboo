@@ -128,6 +128,43 @@ contract magicatTest is xBooTest{
         handler.withdraw(subArray);
     }
 
+    function testMagicatHandlerMigration() public {
+        MagicatsHandler handler2;
+        address[] memory msRoles = new address[](2);
+        msRoles[0] = address(0xb0C9D5851deF8A2Aac4A23031CA2610f8C3483F9);
+        msRoles[1] = address(1337);
+        address[] memory strategists = new address[](1); 
+        strategists[0] = address(0xb0C9D5851deF8A2Aac4A23031CA2610f8C3483F9);
+
+
+        handler2 = new MagicatsHandler(
+            address(XbooStrat),
+            address(vault),
+            strategists,
+            msRoles
+        );
+
+        vm.label(address(handler2), "new handler");
+
+        address magicatOwner = 0x60BC5E0440C867eEb4CbcE84bB1123fad2b262B1;
+        vm.startPrank(magicatOwner);
+        uint256[] memory ownedMagicats = handler.getDepositableMagicats(magicatOwner);
+        IMagicat(currentMagicats).setApprovalForAll(address(handler), true);
+        handler.deposit(ownedMagicats);
+        vm.stopPrank();
+
+        setMagicatAllocations();
+
+        vm.startPrank(0xb0C9D5851deF8A2Aac4A23031CA2610f8C3483F9);
+        handler.massUnstakeMagicats();
+        XbooStrat.updateMagicatsHandler(address(handler2));
+        vm.stopPrank();
+
+
+
+
+    }
+
     function setMagicatAllocations() public {
         uint aceLabBalanceBeforeAllocation = IMagicat(currentMagicats).balanceOf(address(currentAceLab));
 

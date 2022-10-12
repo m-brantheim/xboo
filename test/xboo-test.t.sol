@@ -53,9 +53,9 @@ contract xBooTest is XbooConstants {
         XbooStrat.initialize(address(vault), feeRemitters, strategists, msRoles);
         vault.initialize(address(XbooStrat));
 
-        address dummyMagicats = address(33333);
+        /*address dummyMagicats = address(33333);
         XbooStrat.updateMagicatsHandler(dummyMagicats);
-        vm.label(dummyMagicats, "dummy magicats handler");
+        vm.label(dummyMagicats, "dummy magicats handler");*/
 
         setRoutes();
 

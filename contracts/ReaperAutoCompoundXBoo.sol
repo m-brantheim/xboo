@@ -15,8 +15,6 @@ import "@openzeppelin/contracts-upgradeable/utils/math/SignedSafeMathUpgradeable
 import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721ReceiverUpgradeable.sol";
 
-import "forge-std/Test.sol";
-
 /**
  * @dev This is a strategy to stake Boo into XBOO, and then stake XBOO in different pools to collect more rewards
  * The strategy will compound the pool rewards into Boo which will be deposited into the strategy for more yield.
@@ -26,6 +24,8 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
     using SafeERC20Upgradeable for IBooMirrorWorld;
     using SafeMathUpgradeable for uint256;
     using SignedSafeMathUpgradeable for int256;
+    using MathUpgradeable for uint256;
+
 
     /**
      * @dev Tokens Used:
@@ -46,7 +46,6 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
      * {magicatsHandler} - NFT vault for magicats that allows for management + deposit/withdraw of magicatNFTs
      */
     address public constant UNIROUTER = 0xF491e7B69E4244ad4002BC14e878a34207E38c29;
-    address public constant CURRENT_ACE_LAB = 0x399D73bB7c83a011cD85DF2a3CdF997ED3B3439f;
     address public constant MAGICATS = 0x2aB5C606a5AA2352f8072B9e2E8A213033e2c4c9;
     address public magicatsHandler;
     address public aceLab;
@@ -93,12 +92,6 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
     mapping(uint256 => address) public specialHandler;
 
     /**
-     * @dev Fee variables
-     * {useSecurityFee} - If security fee should be applied on withdraw, controlled by the fee moderator
-     */
-    bool public useSecurityFee; // remove, just set var to 0
-
-    /**
      * {UpdatedStrategist} Event that is fired each time the strategist role is updated.
      */
     event UpdatedStrategist(address newStrategist);
@@ -107,7 +100,6 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
      * @dev Initializes the strategy. Sets parameters, saves routes, and gives allowances.
      * @notice see documentation for each variable above its respective declaration.
      */
-    // constructor(){}
     function initialize(
         address _vault,
         address[] memory _feeRemitters,
@@ -115,9 +107,9 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
         address[] memory _multisigRoles
     ) public initializer {
         __ReaperBaseStrategy_init(_vault, _feeRemitters, _strategists, _multisigRoles);
-        useSecurityFee = false;
 
-        aceLab = CURRENT_ACE_LAB;
+        aceLab = 0x399D73bB7c83a011cD85DF2a3CdF997ED3B3439f;
+
         currentPoolId = 5;
         totalPoolBalance = 0;
         WFTMToBOOPath = [WFTM, address(BOO)];
@@ -162,19 +154,23 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
         uint256 BOOBalance = BOO.balanceOf(address(this));
 
         if (BOOBalance < _amount) {
+            uint256 xBooToWithdraw = XBOO.BOOForxBOO(_amount - BOOBalance);
             uint256 poolLength = IAceLab(aceLab).poolLength();
 
-            uint256 withdrawPercentage = ((_amount - BOOBalance) * PERCENT_DIVISOR) / balanceOfPool();
-            // remove as much as possible from pool before going to
-            for (uint256 i = 0; i < poolLength; i++) {
-                if (poolXBOOBalance[i] != 0) {
-                    // seems overkill to have internal accounting to simply check != 0
-                    _aceLabWithdraw(i, ((withdrawPercentage * poolXBOOBalance[i]) / PERCENT_DIVISOR));
+            uint256 withdrawnAmount = 0;
+            uint256 amountToWithdraw;
+            for(uint256 i = 0; i < poolLength; i = _uncheckedInc(i)){
+                if(withdrawnAmount  >= xBooToWithdraw){
+                    break;
+                }
+                else if (poolXBOOBalance[i] != 0) {
+                    amountToWithdraw = MathUpgradeable.min(poolXBOOBalance[i], _amount - withdrawnAmount);
+                    _aceLabWithdraw(i, amountToWithdraw);
+                    withdrawnAmount += amountToWithdraw;
                 }
             }
 
-            uint256 XBOOBalance = XBOO.balanceOf(address(this));
-            XBOO.leave(XBOOBalance);
+            XBOO.leave(xBooToWithdraw);
             BOOBalance = BOO.balanceOf(address(this));
         }
 
@@ -221,11 +217,11 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
         );
 
         // store numpools in local var and use unchecked inc
-        for (uint256 i = 0; i < withdrawPoolIds.length; i++) {
+        for (uint256 i = 0; i < withdrawPoolIds.length; i = _uncheckedInc(i)) {
             _aceLabWithdraw(withdrawPoolIds[i], withdrawAmounts[i]);
         }
 
-        for (uint256 i = 0; i < depositPoolIds.length; i++) {
+        for (uint256 i = 0; i < depositPoolIds.length; i = _uncheckedInc(i)) {
             uint256 XBOOAvailable = IERC20Upgradeable(XBOO).balanceOf(address(this));
             if (XBOOAvailable == 0) {
                 return;
@@ -245,21 +241,21 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
     function _harvestCore() internal override returns (uint256 callerFee) {
         _claimAllRewards();
         catBOOstPercentage = _processRewards();
-        console.log("returned catBOOstPercentage was %s", catBOOstPercentage);
         callerFee = _chargeFees();
         _swapWFTMToBOO();
-        _payMagicatDepositors(catBOOstPercentage);
-        _enterXBOO();
-        _aceLabDeposit(currentPoolId, XBOO.balanceOf(address(this)));
         if(magicatsHandler != address(0) && catBOOstPercentage != 0){
+            _payMagicatDepositors(catBOOstPercentage);
             IMagicatsHandler(magicatsHandler).processRewards();
         }
+        _enterXBOO();
+        _aceLabDeposit(currentPoolId, XBOO.balanceOf(address(this)));
+
     }
 
     function _claimAllRewards() internal {
         uint256 poolLength = IAceLab(aceLab).poolLength(); // enumerableset of poolIDs deposited in?
         uint256 pending;
-        for (uint256 i = 0; i < poolLength; i++) {
+        for (uint256 i = 0; i < poolLength; i = _uncheckedInc(i)) {
             (pending, ) = IAceLab(aceLab).pendingRewards(i, address(this));
             if (pending != 0) {
                 _aceLabWithdraw(i, 0);
@@ -282,7 +278,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
         uint256 catBoostTotal;
         uint256 totalHarvest;
         address rewardToken;
-        for (uint256 i = 0; i < poolLength; i++) {
+        for (uint256 i = 0; i < poolLength; i = _uncheckedInc(i)) {
             rewardToken = address(IAceLab(aceLab).poolInfo(i).RewardToken);
             tokenBal = IERC20Upgradeable(rewardToken).balanceOf(address(this));
             if (tokenBal != 0) {
@@ -302,7 +298,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
                     _swapRewardToWFTM(i);
                 } else if (_handler != address(this) && _handler != address(0)) {
                     IERC20Upgradeable(rewardToken).approve(_handler, tokenBal);
-                    //external call to handler
+                    IExternalHandler(_handler).handle(rewardToken, tokenBal);
                 }
 
                 WFTMBalAfter = IERC20Upgradeable(WFTM).balanceOf(address(this));
@@ -430,7 +426,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
      * @dev Pauses deposits. Withdraws all funds from the AceLab contract, leaving rewards behind.
      */
     function _reclaimWant() internal override {
-        for (uint256 index = 0; index < IAceLab(aceLab).poolLength(); index++) {
+        for (uint256 index = 0; index < IAceLab(aceLab).poolLength(); index = _uncheckedInc(index)) {
             (uint256 amount, , , ) = IAceLab(aceLab).userInfo(index, address(this));
             if (amount != 0) {
                 IAceLab(aceLab).emergencyWithdraw(index);
@@ -439,9 +435,6 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
         totalPoolBalance = IAceLab(aceLab).balanceOf(address(this));
         uint256 XBOOBalance = XBOO.balanceOf(address(this));
         XBOO.leave(XBOOBalance);
-
-        // uint256 BOOBalance = BOO.balanceOf(address(this));
-        // BOO.transfer(vault, BOOBalance);
     }
 
     /**
@@ -496,32 +489,47 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
         XBOO.safeApprove(aceLab, 0);
         // Remove UNIROUTER permission to swap WFTM to BOO
         IERC20Upgradeable(WFTM).safeApprove(UNIROUTER, 0);
+        // Remove Magicats approvals for the staking contract
+        IERC721Upgradeable(MAGICATS).setApprovalForAll(aceLab, false);
     }
-
+    /**
+     * @dev internal helper for setting mass approvals for magicats NFTs to a specified address
+     */
     function _approveMagicatsFor(address operator) internal {
         IERC721Upgradeable(MAGICATS).setApprovalForAll(operator, true);
     }
 
+    /**
+     * @dev external function, called by MAGICATS_HANDLER usually, but can be bypassed if required, to set magicat staking positions for 1 poolID
+     * @param poolID - the poolID of the staking contract the function will change
+     * @param IDsToStake - the Magicat NFTs, by ID, that will be staked into the contract
+     * @param IDsToUnstake - the Magicat NFTs, by ID, that will be unstaked from the contract
+     */
     function updateMagicats(
         uint256 poolID,
         uint256[] memory IDsToStake,
         uint256[] memory IDsToUnstake
     ) external {
-        //needs to be secured, called by the handler contract
         _atLeastRole(MAGICATS_HANDLER);
-        if (IDsToStake.length > 0) {
-            IAceLab(aceLab).deposit(poolID, 0, IDsToStake);
-        }
-
         if (IDsToUnstake.length > 0) {
             IAceLab(aceLab).withdraw(poolID, 0, IDsToUnstake);
         }
+
+        if (IDsToStake.length > 0) {
+            IAceLab(aceLab).deposit(poolID, 0, IDsToStake);
+        }
     }
 
+    /**
+     * @dev external function for updating the magicatHandler contract
+     * @param handler - the address of the new Handler
+     */
     function updateMagicatsHandler(address handler) external {
         _atLeastRole(STRATEGIST);
-        IERC721Upgradeable(MAGICATS).setApprovalForAll(magicatsHandler, false);
         if (magicatsHandler != address(0)) {
+            IMagicatsHandler(magicatsHandler).massUnstakeMagicats();
+            IMagicatsHandler(magicatsHandler).withdrawAllMagicatsFromStrategy();
+            IERC721Upgradeable(MAGICATS).setApprovalForAll(magicatsHandler, false);
             revokeRole(MAGICATS_HANDLER, magicatsHandler);
         }
         grantRole(MAGICATS_HANDLER, handler);
@@ -546,10 +554,16 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
         return this.onERC721Received.selector;
     }
 
+    //required for the strategy interface in existing vault
     function retireStrat() external {}
 
+    /**
+     * @dev function to update the fee allocated to magicatStakers
+     * @param _fee - the new fee to set
+     */
     function updateCatProvisionFee(uint256 _fee) external {
-        _atLeastRole(STRATEGIST);
+        _atLeastRole(DEFAULT_ADMIN_ROLE);
+        require(_fee <= 2500, "fee too high");
         catProvisionFee = _fee;
     }
 
@@ -557,4 +571,15 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
         _atLeastRole(STRATEGIST);
         poolRewardToWFTMPaths[poolId] = routes;
     }
+
+    /// @notice For doing an unchecked increment of an index for gas optimization purposes
+    /// @param i - The number to increment
+    /// @return The incremented number
+    function _uncheckedInc(uint256 i) internal pure returns (uint256) {
+        unchecked {
+            return i + 1;
+        }
+    }
 }
+
+

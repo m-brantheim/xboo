@@ -19,6 +19,7 @@ contract MagicatsHandler is AccessControlEnumerable, ERC721Enumerable {
 
     bytes32 public constant KEEPER = keccak256("KEEPER");
     bytes32 public constant STRATEGIST = keccak256("STRATEGIST");
+    bytes32 public constant STRATEGY = keccak256("STRATEGY");
     bytes32 public constant ADMIN = keccak256("ADMIN");
     bytes32[] private cascadingAccess;
 
@@ -75,6 +76,7 @@ contract MagicatsHandler is AccessControlEnumerable, ERC721Enumerable {
         ) ERC721("reaper magicats", "rfMagicats")
     {
         strategy = _strategy;
+        _grantRole(STRATEGY, strategy);
         _approveMagicatsFor(strategy);
         vault = _vault;
 
@@ -82,11 +84,11 @@ contract MagicatsHandler is AccessControlEnumerable, ERC721Enumerable {
         _grantRole(DEFAULT_ADMIN_ROLE, _multisigRoles[0]);
         _grantRole(ADMIN, _multisigRoles[1]);
 
-        for (uint256 i = 0; i < _strategists.length; i++) {
+        for (uint256 i = 0; i < _strategists.length; i = _uncheckedInc(i)) {
             _grantRole(STRATEGIST, _strategists[i]);
         }
 
-        cascadingAccess = [DEFAULT_ADMIN_ROLE, ADMIN, STRATEGIST, KEEPER];
+        cascadingAccess = [DEFAULT_ADMIN_ROLE, ADMIN, STRATEGY, STRATEGIST, KEEPER];
     }
     /***
      * @notice deposit function for Magicat NFTs
@@ -96,7 +98,7 @@ contract MagicatsHandler is AccessControlEnumerable, ERC721Enumerable {
      */
     function deposit(uint256[] memory magicatsIds) external{
         Magicat memory deposited;
-        for(uint i; i < magicatsIds.length; i++){
+        for(uint i; i < magicatsIds.length; i = _uncheckedInc(i)){
             deposited.magicatId = magicatsIds[i];
             deposited.manapoints = IAceLab(aceLab).rarityOf(magicatsIds[i]);
             deposited.lastHarvestClaimed = harvests.length;
@@ -116,17 +118,21 @@ contract MagicatsHandler is AccessControlEnumerable, ERC721Enumerable {
      * @param magicatsIds - array of NFTs to withdraw
      * @dev rewards are forcefully claimed for all withdrawn nfts because they would be lost in limbo otherwise
      * this also burns the underlying nft.
+     * 
+     * this function accounts for a possible case where this particular version of the magicatsHandler is retired from use,
+     * in this case, the NFTs are not in the strategy anymore but back in this contract for safe retrieval by their rightful owners
      */
     function withdraw(uint256[] memory magicatsIds) external{
         claimRewards(magicatsIds);
-        for(uint i; i < magicatsIds.length; i++){
+        for(uint i; i < magicatsIds.length; i = _uncheckedInc(i)){
             require(_isApprovedOrOwner(msg.sender, magicatsIds[i]), "!approved");
             totalMp -= idToMagicat[magicatsIds[i]].manapoints;
 
             if(IERC721(Magicats).ownerOf(magicatsIds[i]) == strategy){
                 _burn(magicatsIds[i]);
   
-            }else if (IERC721(Magicats).ownerOf(magicatsIds[i]) == aceLab){
+            }
+            if (IERC721(Magicats).ownerOf(magicatsIds[i]) == aceLab){
                 _burn(magicatsIds[i]);
                 uint[] memory unstake = new uint[](1);
                 unstake[0] = magicatsIds[i];
@@ -136,6 +142,13 @@ contract MagicatsHandler is AccessControlEnumerable, ERC721Enumerable {
 
             delete idToMagicat[magicatsIds[i]];
             delete magicatIdToStakedPid[magicatsIds[i]];
+            
+            if(IERC721(Magicats).ownerOf(magicatsIds[i]) == address(this)){
+                _burn(magicatsIds[i]);
+                IERC721(Magicats).transferFrom(address(this), msg.sender, magicatsIds[i]);
+                continue;
+            }
+
             IERC721(Magicats).transferFrom(strategy, msg.sender, magicatsIds[i]);
 
         }
@@ -149,7 +162,7 @@ contract MagicatsHandler is AccessControlEnumerable, ERC721Enumerable {
      */
     function _updateStakedMagicats(uint poolID, uint[] memory IDsToStake, uint[] memory IDsToUnstake) internal{
         IStrategy(strategy).updateMagicats(poolID, IDsToStake, IDsToUnstake);
-        for(uint i = 0; i < IDsToStake.length; i++){
+        for(uint i = 0; i < IDsToStake.length; i = _uncheckedInc(i)){
             magicatIdToStakedPid[IDsToStake[i]] = poolID;
         }
     }
@@ -196,7 +209,7 @@ contract MagicatsHandler is AccessControlEnumerable, ERC721Enumerable {
         Magicat memory cat =  idToMagicat[id];
         uint256 magicatShare;
         uint256 unclaimedReward;
-        for(uint i = cat.lastHarvestClaimed; i < totalHarvests; i++){
+        for(uint i = cat.lastHarvestClaimed; i < totalHarvests; i = _uncheckedInc(i)){
             magicatShare = harvests[i].amount * cat.manapoints / harvests[i].totalManaPoints;
             unclaimedReward += magicatShare;
         }
@@ -209,7 +222,7 @@ contract MagicatsHandler is AccessControlEnumerable, ERC721Enumerable {
      */
     function getMagicatRewards(uint[] memory ids) public view returns (uint256){
         uint256 unclaimedRewards;
-        for(uint i = 0; i < ids.length; i++){
+        for(uint i = 0; i < ids.length; i = _uncheckedInc(i)){
             unclaimedRewards += getMagicatReward(ids[i]);
         }
         return unclaimedRewards;
@@ -231,7 +244,7 @@ contract MagicatsHandler is AccessControlEnumerable, ERC721Enumerable {
      * @dev after claiming 
      */
     function claimRewards(uint256[] memory ids) public {
-        for(uint i = 0; i < ids.length; i++){
+        for(uint i = 0; i < ids.length; i = _uncheckedInc(i)){
             require(_isApprovedOrOwner(msg.sender, ids[i]), "!approved");
             _claimRewards(ids[i]);
         }
@@ -250,10 +263,10 @@ contract MagicatsHandler is AccessControlEnumerable, ERC721Enumerable {
      * @notice view function/front-end helper for getting an array of magicat NFTs owned by user {owner}
      * @param owner - the address to query the Magicat balance of
      */
-    function getDepositableMagicats(address owner) external view returns (uint [] memory){
+    function getDepositableMagicats(address owner) public view returns (uint [] memory){
         uint256 balance = IMagicat(Magicats).balanceOf(owner);
         uint256[] memory ids = new uint[](balance);
-        for(uint i = 0; i < balance; i++){
+        for(uint i = 0; i < balance; i = _uncheckedInc(i)){
             ids[i] = IMagicat(Magicats).tokenOfOwnerByIndex(owner, i);
         }
 
@@ -267,7 +280,7 @@ contract MagicatsHandler is AccessControlEnumerable, ERC721Enumerable {
     function getDepositedMagicats(address owner) external view returns (uint [] memory){
         uint256 balance = balanceOf(owner);
         uint256[] memory ids = new uint[](balance);
-         for(uint i = 0; i < balance; i++){
+         for(uint i = 0; i < balance; i = _uncheckedInc(i)){
             ids[i] = tokenOfOwnerByIndex(owner, i);
         }
 
@@ -280,10 +293,24 @@ contract MagicatsHandler is AccessControlEnumerable, ERC721Enumerable {
      */
     function massUnstakeMagicats() external {
         _atLeastRole(KEEPER);
-        for(uint i = 0; i < IAceLab(aceLab).poolLength(); i++){
-            uint[] memory stakedMagicats = IAceLab(aceLab).getStakedMagicats(i, strategy);
-            uint[] memory empty;
-            _updateStakedMagicats(i,empty,stakedMagicats);
+        for(uint256 i = 0; i < IAceLab(aceLab).poolLength(); i = _uncheckedInc(i)){ 
+            uint256[] memory stakedIds = IAceLab(aceLab).getStakedMagicats(i, strategy);           
+            uint256[] memory empty;
+            _updateStakedMagicats(i,empty,stakedIds);
+        }
+    }
+
+    function withdrawAllMagicatsFromStrategy() external {
+        _atLeastRole(STRATEGY);
+        uint256 stratBalance = IMagicat(Magicats).balanceOf(strategy);
+        uint256[] memory stratIds = new uint256[](stratBalance);
+        stratIds = getDepositableMagicats(strategy);
+        for(uint256 i = 0; i < stratBalance; i = _uncheckedInc(i)){
+            IMagicat(Magicats).transferFrom(
+                strategy,
+                address(this),
+                stratIds[i]
+            );
         }
     }
 
@@ -296,7 +323,7 @@ contract MagicatsHandler is AccessControlEnumerable, ERC721Enumerable {
     function _atLeastRole(bytes32 role) internal view {
         uint256 numRoles = cascadingAccess.length;
         uint256 specifiedRoleIndex;
-        for (uint256 i = 0; i < numRoles; i++) {
+        for (uint256 i = 0; i < numRoles; i = _uncheckedInc(i)) {
             if (role == cascadingAccess[i]) {
                 specifiedRoleIndex = i;
                 break;
@@ -305,7 +332,7 @@ contract MagicatsHandler is AccessControlEnumerable, ERC721Enumerable {
             }
         }
 
-        for (uint256 i = 0; i <= specifiedRoleIndex; i++) {
+        for (uint256 i = 0; i <= specifiedRoleIndex; i = _uncheckedInc(i)) {
             if (hasRole(cascadingAccess[i], msg.sender)) {
                 break;
             } else if (i == specifiedRoleIndex) {
@@ -330,5 +357,14 @@ contract MagicatsHandler is AccessControlEnumerable, ERC721Enumerable {
             ERC721Enumerable.supportsInterface(interfaceId) ||
             AccessControlEnumerable.supportsInterface(interfaceId)
         );
+    }
+
+    /// @notice For doing an unchecked increment of an index for gas optimization purposes
+    /// @param i - The number to increment
+    /// @return The incremented number
+    function _uncheckedInc(uint256 i) internal pure returns (uint256) {
+        unchecked {
+            return i + 1;
+        }
     }
 }
