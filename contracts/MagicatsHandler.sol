@@ -69,7 +69,7 @@ contract MagicatsHandler is AccessControlEnumerable, ERC721Enumerable {
         address _vault,
         address[] memory _strategists,
         address[] memory _multisigRoles
-    ) ERC721("reaper magicats", "rfMagicats") {
+    ) ERC721("Reaper Magicats", "rfMagicats") {
         strategy = _strategy;
         _grantRole(STRATEGY, strategy);
         _approveMagicatsFor(strategy);
@@ -122,27 +122,22 @@ contract MagicatsHandler is AccessControlEnumerable, ERC721Enumerable {
         for (uint256 i; i < magicatsIds.length; i = _uncheckedInc(i)) {
             require(_isApprovedOrOwner(msg.sender, magicatsIds[i]), "!approved");
             totalMp -= idToMagicat[magicatsIds[i]].manapoints;
+            _burn(magicatsIds[i]);
 
-            if (IERC721(MAGICATS).ownerOf(magicatsIds[i]) == strategy) {
-                _burn(magicatsIds[i]);
-            }
-            if (IERC721(MAGICATS).ownerOf(magicatsIds[i]) == ACELAB) {
-                _burn(magicatsIds[i]);
-                uint256[] memory unstake = new uint256[](1);
-                unstake[0] = magicatsIds[i];
-                _updateStakedMagicats(magicatIdToStakedPid[magicatsIds[i]], new uint256[](0), unstake);
-            }
-
+            uint256 stakedPoolId = magicatIdToStakedPid[magicatsIds[i]];     
             delete idToMagicat[magicatsIds[i]];
             delete magicatIdToStakedPid[magicatsIds[i]];
 
-            if (IERC721(MAGICATS).ownerOf(magicatsIds[i]) == address(this)) {
-                _burn(magicatsIds[i]);
-                IERC721(MAGICATS).transferFrom(address(this), msg.sender, magicatsIds[i]);
-                continue;
+            address currentOwner = IERC721(MAGICATS).ownerOf(magicatsIds[i]);
+
+            if (currentOwner == ACELAB) {       
+                uint256[] memory unstake = new uint256[](1);
+                unstake[0] = magicatsIds[i];
+                _updateStakedMagicats(stakedPoolId, new uint256[](0), unstake);
+                currentOwner = strategy;
             }
 
-            IERC721(MAGICATS).transferFrom(strategy, msg.sender, magicatsIds[i]);
+            IERC721(MAGICATS).transferFrom(currentOwner, msg.sender, magicatsIds[i]);
         }
     }
 

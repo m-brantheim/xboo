@@ -601,6 +601,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
         _atLeastRole(DEFAULT_ADMIN_ROLE);
         require(_aceLab != address(0), "invalid address");
         _reclaimWant();
+        IMagicatsHandler(magicatsHandler).massUnstakeMagicats();
         _removeAllowances();
         aceLab = _aceLab;
         _giveAllowances();
