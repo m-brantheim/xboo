@@ -9,9 +9,6 @@ import "./interfaces/IUniswapRouterETH.sol";
 import "./interfaces/IMagicatsHandler.sol";
 import "./interfaces/IExternalHandler.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/math/SafeMathUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/math/MathUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/math/SignedSafeMathUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721ReceiverUpgradeable.sol";
 
@@ -22,9 +19,6 @@ import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721ReceiverUpgradea
 contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgradeable {
     using SafeERC20Upgradeable for IERC20Upgradeable;
     using SafeERC20Upgradeable for IBooMirrorWorld;
-    using SafeMathUpgradeable for uint256;
-    using SignedSafeMathUpgradeable for int256;
-    using MathUpgradeable for uint256;
 
     /**
      * @dev Tokens Used:
@@ -138,8 +132,8 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
      *      updated.
      */
     function _aceLabDeposit(uint256 _poolId, uint256 _XBOOAmount) internal {
-        totalPoolBalance = totalPoolBalance.add(_XBOOAmount);
-        poolXBOOBalance[_poolId] = poolXBOOBalance[_poolId].add(_XBOOAmount);
+        totalPoolBalance += _XBOOAmount;
+        poolXBOOBalance[_poolId] += _XBOOAmount;
         _writeCatDebt(_poolId);
         IAceLab(aceLab).deposit(_poolId, _XBOOAmount);
     }
@@ -162,7 +156,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
                 if (withdrawnAmount >= xBooToWithdraw) {
                     break;
                 } else if (poolXBOOBalance[i] != 0) {
-                    amountToWithdraw = MathUpgradeable.min(poolXBOOBalance[i], _amount - withdrawnAmount);
+                    amountToWithdraw = _getMin(poolXBOOBalance[i], _amount - withdrawnAmount);
                     _aceLabWithdraw(i, amountToWithdraw);
                     withdrawnAmount += amountToWithdraw;
                 }
@@ -185,8 +179,8 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
      *      updated.
      */
     function _aceLabWithdraw(uint256 _poolId, uint256 _XBOOAmount) internal {
-        totalPoolBalance = totalPoolBalance.sub(_XBOOAmount);
-        poolXBOOBalance[_poolId] = poolXBOOBalance[_poolId].sub(_XBOOAmount);
+        totalPoolBalance -= _XBOOAmount;
+        poolXBOOBalance[_poolId] -= _XBOOAmount;
         _writeCatDebt(_poolId);
         IAceLab(aceLab).withdraw(_poolId, _XBOOAmount);
     }
@@ -225,7 +219,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
             if (XBOOAvailable == 0) {
                 return;
             }
-            uint256 depositAmount = MathUpgradeable.min(XBOOAvailable, depositAmounts[i]);
+            uint256 depositAmount = _getMin(XBOOAvailable, depositAmounts[i]);
             _aceLabDeposit(depositPoolIds[i], depositAmount);
         }
     }
@@ -338,7 +332,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
      * as is treasuryFeeToVault
      */
     function _chargeFees() internal returns (uint256 callFeeToUser) {
-        uint256 WFTMFee = IERC20Upgradeable(WFTM).balanceOf(address(this)).mul(totalFee).div(PERCENT_DIVISOR);
+        uint256 WFTMFee = (IERC20Upgradeable(WFTM).balanceOf(address(this)) * totalFee) / PERCENT_DIVISOR;
         if (WFTMFee != 0) {
             IUniswapRouterETH(UNIROUTER).swapExactTokensForTokensSupportingFeeOnTransferTokens(
                 WFTMFee,
@@ -348,8 +342,8 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
                 block.timestamp
             );
             uint256 USDCBal = IERC20Upgradeable(USDC).balanceOf(address(this));
-            callFeeToUser = USDCBal.mul(callFee).div(PERCENT_DIVISOR);
-            uint256 treasuryFeeToVault = USDCBal.mul(treasuryFee).div(PERCENT_DIVISOR);
+            callFeeToUser = (USDCBal* callFee) / PERCENT_DIVISOR;
+            uint256 treasuryFeeToVault = (USDCBal * treasuryFee) / PERCENT_DIVISOR;
 
             IERC20Upgradeable(USDC).safeTransfer(msg.sender, callFeeToUser);
             IERC20Upgradeable(USDC).safeTransfer(treasury, treasuryFeeToVault);
@@ -617,5 +611,16 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
         _atLeastRole(STRATEGIST);
         require(_newID < IAceLab(aceLab).poolLength(), "invalid ID");
         currentPoolId = _newID;
+    }
+
+    /**
+     * @dev Gets the minimum of two provided uints.
+     */
+    function _getMin(uint256 _a, uint256 _b) internal pure returns (uint256 min) {
+        if (_a < _b) {
+            min = _a;
+        } else {
+            min = _b;
+        }
     }
 }
