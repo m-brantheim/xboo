@@ -421,20 +421,19 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
      * @dev Pauses deposits. Withdraws all funds from the AceLab contract, leaving rewards behind.
      */
     function _reclaimWant() internal override {
-        uint256 depositedPoolsLength = depositedPools.length();
-        uint256 activeIndex;
-        for (uint256 index = 0; index < depositedPoolsLength; index = _uncheckedInc(index)) {
-            activeIndex = depositedPools.at(index);
-            (uint256 amount, , , ) = IAceLab(aceLab).userInfo(activeIndex, address(this));
-            if (amount != 0) {
-                IAceLab(aceLab).emergencyWithdraw(activeIndex);
-                poolXBOOBalance[activeIndex] = 0;
-            }
+        uint256[] memory depositedPoolIDs = depositedPools.values();
+        uint256 depositPoolsLength = depositedPoolIDs.length;
+        uint256 currentDepositedPoolId;
+        for (uint256 index = 0; index < depositPoolsLength; index = _uncheckedInc(index)) {
+            currentDepositedPoolId = depositedPoolIDs[index];
+            IAceLab(aceLab).emergencyWithdraw(currentDepositedPoolId);
+            totalPoolBalance -= poolXBOOBalance[currentDepositedPoolId];
+            poolXBOOBalance[currentDepositedPoolId] = 0;
+            depositedPools.remove(currentDepositedPoolId);
         }
 
         IMagicatsHandler(magicatsHandler).massUnstakeMagicats();
 
-        totalPoolBalance = IAceLab(aceLab).balanceOf(address(this));
         uint256 XBOOBalance = XBOO.balanceOf(address(this));
         XBOO.leave(XBOOBalance);
     }
@@ -579,7 +578,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
      */
     function updateCatProvisionFee(uint256 _fee) external {
         _atLeastRole(DEFAULT_ADMIN_ROLE);
-        require(_fee <= 10000);
+        require(_fee <= PERCENT_DIVISOR);
         catProvisionFee = _fee;
     }
 

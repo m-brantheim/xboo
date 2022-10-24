@@ -295,13 +295,15 @@ contract MagicatsHandler is AccessControlEnumerable, ERC721Enumerable {
         _atLeastRole(KEEPER);
         for (uint256 i = 0; i < IAceLab(ACELAB).poolLength(); i = _uncheckedInc(i)) {
             uint256[] memory stakedIds = IAceLab(ACELAB).getStakedMagicats(i, strategy);
-            uint256[] memory empty;
-            _updateStakedMagicats(i, empty, stakedIds);
+            if (stakedIds.length != 0) {
+                uint256[] memory empty;
+                _updateStakedMagicats(i, empty, stakedIds);
+            }
         }
     }
 
     function withdrawAllMagicatsFromStrategy() external {
-        _atLeastRole(STRATEGY);
+        _atLeastRole(ADMIN);
         massUnstakeMagicats();
         uint256 stratBalance = IMagicat(MAGICATS).balanceOf(strategy);
         uint256[] memory stratIds = new uint256[](stratBalance);
