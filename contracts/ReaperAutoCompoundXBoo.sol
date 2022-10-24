@@ -79,16 +79,13 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
     mapping(uint256 => uint256) public accCatDebt;
     uint256 public catProvisionFee;
 
-    //mapping of poolIds to a flag that specifies if the token requires special preperation to turn into WFTM (ex. xTaort)
-    mapping(uint256 => bool) public requiresSpecialHandling;
-    //mapping of poolIds to addresses of contracts to do external handling of tokens, these can be consolidated or one offs,
-    //making this modular allows for all current and future possible rewards to be handled
-    mapping(uint256 => address) public specialHandler;
-
-    /**
-     * {UpdatedStrategist} Event that is fired each time the strategist role is updated.
-     */
-    event UpdatedStrategist(address newStrategist);
+    struct RewardHandler {
+        bool requiresSpecialHandling;
+        address handler;
+    }
+    //mapping of poolIds to a struct that specifies if the token requires special preperation to turn into WFTM (ex. xTarot)
+    //and the address of the contract that can handle it according the pre-set API
+    mapping(uint256 => RewardHandler) public idToSpecialHandler;
 
     /**
      * @dev Initializes the strategy. Sets parameters, saves routes, and gives allowances.
@@ -108,7 +105,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
         totalPoolBalance = 0;
         WFTMToBOOPath = [WFTM, address(BOO)];
         WFTMToUSDCPath = [WFTM, USDC];
-        catProvisionFee = 1500;
+        catProvisionFee = 5000;
 
         _giveAllowances();
     }
@@ -548,11 +545,20 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
     }
 
     function _requireExternalHandling(uint256 pid) internal view returns (address) {
-        if (requiresSpecialHandling[pid] == true) {
-            return specialHandler[pid];
-        } else {
-            return address(this);
+        if (idToSpecialHandler[pid].requiresSpecialHandling) {
+            return idToSpecialHandler[pid].handler;
         }
+        return address(this);
+    }
+
+    function setExternalHandlerPid(
+        uint256 pid,
+        bool toggle,
+        address _handler
+    ) external {
+        _atLeastRole(DEFAULT_ADMIN_ROLE);
+        idToSpecialHandler[pid].requiresSpecialHandling = toggle;
+        idToSpecialHandler[pid].handler = _handler;
     }
 
     function onERC721Received(
@@ -573,7 +579,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
      */
     function updateCatProvisionFee(uint256 _fee) external {
         _atLeastRole(DEFAULT_ADMIN_ROLE);
-        require(_fee <= 2500);
+        require(_fee <= 10000);
         catProvisionFee = _fee;
     }
 

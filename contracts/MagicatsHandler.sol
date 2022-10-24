@@ -75,15 +75,13 @@ contract MagicatsHandler is AccessControlEnumerable, ERC721Enumerable {
         _approveMagicatsFor(strategy);
         vault = _vault;
 
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(DEFAULT_ADMIN_ROLE, _multisigRoles[0]);
-        _grantRole(ADMIN, _multisigRoles[1]);
+        _grantRole(ADMIN, _multisigRoles[0]);
 
         for (uint256 i = 0; i < _strategists.length; i = _uncheckedInc(i)) {
             _grantRole(STRATEGIST, _strategists[i]);
         }
 
-        cascadingAccess = [DEFAULT_ADMIN_ROLE, ADMIN, STRATEGY, STRATEGIST, KEEPER];
+        cascadingAccess = [ADMIN, STRATEGY, STRATEGIST, KEEPER];
     }
 
     /***
@@ -94,6 +92,7 @@ contract MagicatsHandler is AccessControlEnumerable, ERC721Enumerable {
      */
     function deposit(uint256[] memory magicatsIds) external {
         Magicat memory deposited;
+        uint256[] memory tempDeposit = new uint256[](1);
         for (uint256 i; i < magicatsIds.length; i = _uncheckedInc(i)) {
             deposited.magicatId = magicatsIds[i];
             deposited.manapoints = IAceLab(ACELAB).rarityOf(magicatsIds[i]);
@@ -103,6 +102,8 @@ contract MagicatsHandler is AccessControlEnumerable, ERC721Enumerable {
             idToMagicat[magicatsIds[i]] = deposited;
 
             IERC721(MAGICATS).safeTransferFrom(msg.sender, strategy, magicatsIds[i]);
+            tempDeposit[0] = magicatsIds[i];
+            _updateStakedMagicats(IStrategy(strategy).currentPoolId(), tempDeposit, new uint256[](0));
 
             _safeMint(msg.sender, magicatsIds[i]);
         }
@@ -143,6 +144,8 @@ contract MagicatsHandler is AccessControlEnumerable, ERC721Enumerable {
 
     /***
      * @dev internal function for interacting with the strategy-held magicats accross all poolIds
+            magicatIDToStakedPid is only checked when this contract knows the magicat is staked in the acelab contract,
+            therefore we do not need to update the data being stale on unstaking
      * @param poolID, the acelab poolID to operate on
      * @param IDsToStake the magicatIds to Stake
      * @param IDsToUnstake the magicatIds to unstake
@@ -299,6 +302,7 @@ contract MagicatsHandler is AccessControlEnumerable, ERC721Enumerable {
 
     function withdrawAllMagicatsFromStrategy() external {
         _atLeastRole(STRATEGY);
+        massUnstakeMagicats();
         uint256 stratBalance = IMagicat(MAGICATS).balanceOf(strategy);
         uint256[] memory stratIds = new uint256[](stratBalance);
         stratIds = getDepositableMagicats(strategy);
