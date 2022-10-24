@@ -8,4 +8,6 @@ interface IMagicatsHandler {
     function massUnstakeMagicats() external;
 
     function withdrawAllMagicatsFromStrategy() external;
+
+    function getDepositableMagicats(address) external returns (uint256[] memory);
 }

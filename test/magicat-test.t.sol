@@ -149,6 +149,15 @@ contract magicatTest is xBooTest {
             vm.warp(time += 13 hours);
             XbooStrat.harvest();
         }
+        uint256[] memory tempArray = new uint256[](1);
+        uint256[] memory tempArray2 = new uint256[](1);
+        tempArray[0] = ownedMagicats[0];
+        tempArray2[0] = ownedMagicats[1];
+        vm.prank(magicatOwner);
+        handler.withdraw(tempArray);
+
+
+
 
         vm.startPrank(0xb0C9D5851deF8A2Aac4A23031CA2610f8C3483F9);
         XbooStrat.updateMagicatsHandler(address(handler2));
@@ -157,12 +166,13 @@ contract magicatTest is xBooTest {
         vm.startPrank(magicatOwner);
         //uint256[] memory ownedMagicats = handler.getDepositableMagicats(magicatOwner);
 
-        //assert that user can withdraw from old handler (tests claiming as well)
-        handler.withdraw(ownedMagicats);
+        //assert that user cannot withdraw from old handler 
+        vm.expectRevert();
+        handler.withdraw(tempArray2);
 
         //test that depositing into new one works seemlessly
         IMagicat(currentMagicats).setApprovalForAll(address(handler2), true);
-        handler2.deposit(ownedMagicats);
+        handler2.deposit(tempArray);
         vm.stopPrank();
 
         setMagicatAllocations(handler2);
@@ -173,20 +183,20 @@ contract magicatTest is xBooTest {
         }
 
         uint256 userStartingVaultShares = vault.balanceOf(magicatOwner);
-        uint256 dueRewardsForAllCats = handler2.getMagicatRewards(ownedMagicats);
+        uint256 dueRewardsForAllCats = handler2.getMagicatRewards(tempArray);
 
         vm.startPrank(magicatOwner);
         //Assert that helper function returns the same amount as the amount claimed
-        handler2.claimRewards(ownedMagicats);
+        handler2.claimRewards(tempArray);
         uint256 afterClaimingVaultShares = vault.balanceOf(magicatOwner);
 
         assertEq(dueRewardsForAllCats, afterClaimingVaultShares - userStartingVaultShares);
 
-        handler2.withdraw(ownedMagicats);
+        handler2.withdraw(tempArray);
 
         //assert that redepositing between harvests does not double rewards
-        handler2.deposit(ownedMagicats);
-        uint256 temp = handler2.getMagicatRewards(ownedMagicats);
+        handler2.deposit(tempArray);
+        uint256 temp = handler2.getMagicatRewards(tempArray);
         assertEq(0, temp);
     }
 

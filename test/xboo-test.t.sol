@@ -53,7 +53,7 @@ contract xBooTest is XbooConstants {
         vm.label(address(Boo), "BooToken");
         vm.startPrank(BigBooWhale);
         console.log(Boo.balanceOf(BigBooWhale));
-        Boo.transfer(user1, 10000 ether);
+        Boo.transfer(user1, 1000 ether);
         console.log(Boo.balanceOf(user1));
         vm.stopPrank();
 

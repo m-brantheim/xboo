@@ -74,13 +74,9 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
     /***
      * {accCatDebt} - mapping of poolID -> accumulated catDebt between harvest.
      *                Accounted for each time catDebt is reset (deposit/withdraw/harvest).
-     * {catBoostPercentage} - variable used in calculating rewards diverted to magicatsHandler,
-     *                        the raw percent the harvest was increased via magicats
      * {catProvisionFee} - amount of boosted harvest diverted to magicatsHandler
      */
     mapping(uint256 => uint256) public accCatDebt;
-    // TODO goober doesn't need to be a global var
-    uint256 public catBoostPercentage;
     uint256 public catProvisionFee;
 
     //mapping of poolIds to a flag that specifies if the token requires special preperation to turn into WFTM (ex. xTaort)
@@ -238,7 +234,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
      */
     function _harvestCore() internal override returns (uint256 callerFee) {
         _claimAllRewards();
-        catBoostPercentage = _processRewards();
+        uint256 catBoostPercentage = _processRewards();
         callerFee = _chargeFees();
         _swapWFTMToBOO();
         if (magicatsHandler != address(0) && catBoostPercentage != 0) {
@@ -262,8 +258,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
      *         was boosted by the cats.
      */
     function _processRewards() internal returns (uint256) {
-        // TODO goober use depositedPools
-        uint256 poolLength = IAceLab(aceLab).poolLength();
+        uint256 depositPoolsLength = depositedPools.length();
         uint256 tokenBal;
         address _handler;
         uint256 WFTMBalBefore;
@@ -273,8 +268,10 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
         uint256 catBoostTotal;
         uint256 totalHarvest;
         address rewardToken;
-        for (uint256 i = 0; i < poolLength; i = _uncheckedInc(i)) {
-            rewardToken = address(IAceLab(aceLab).poolInfo(i).RewardToken);
+        uint256 activeIndex;
+        for (uint256 index = 0; index < depositPoolsLength; index = _uncheckedInc(index)) {
+            activeIndex = depositedPools.at(index);
+            rewardToken = address(IAceLab(aceLab).poolInfo(activeIndex).RewardToken);
             tokenBal = IERC20Upgradeable(rewardToken).balanceOf(address(this));
             if (tokenBal != 0) {
                 WFTMBalBefore = IERC20Upgradeable(WFTM).balanceOf(address(this));
@@ -282,15 +279,15 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
                 //leave is pretty standard for xTokens if it does not have leave we will need an external handler
                 try IBooMirrorWorld(rewardToken).leave(tokenBal) {} catch {}
 
-                if (accCatDebt[i] != 0) {
-                    catBoostPercent = (accCatDebt[i] * PERCENT_DIVISOR) / tokenBal;
+                if (accCatDebt[activeIndex] != 0) {
+                    catBoostPercent = (accCatDebt[activeIndex] * PERCENT_DIVISOR) / tokenBal;
                 } else {
                     catBoostPercent = 0;
                 }
 
-                _handler = _requireExternalHandling(i);
+                _handler = _requireExternalHandling(activeIndex);
                 if (_handler == address(this)) {
-                    _swapRewardToWFTM(i);
+                    _swapRewardToWFTM(activeIndex);
                 } else if (_handler != address(0)) {
                     IERC20Upgradeable(rewardToken).approve(_handler, tokenBal);
                     IExternalHandler(_handler).handle(rewardToken, tokenBal);
@@ -300,7 +297,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
                 totalHarvest += (WFTMBalAfter - WFTMBalBefore);
                 catBoostWFTM = ((WFTMBalAfter - WFTMBalBefore) * catBoostPercent) / PERCENT_DIVISOR;
                 catBoostTotal += catBoostWFTM;
-                accCatDebt[i] = 0;
+                accCatDebt[activeIndex] = 0;
             }
         }
 
@@ -427,15 +424,19 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
      * @dev Pauses deposits. Withdraws all funds from the AceLab contract, leaving rewards behind.
      */
     function _reclaimWant() internal override {
-        // TODO goober use depositedPools
-        // TODO goober get all the magicats back
-        for (uint256 index = 0; index < IAceLab(aceLab).poolLength(); index = _uncheckedInc(index)) {
-            (uint256 amount, , , ) = IAceLab(aceLab).userInfo(index, address(this));
+        uint256 depositedPoolsLength = depositedPools.length();
+        uint256 activeIndex;
+        for (uint256 index = 0; index < depositedPoolsLength; index = _uncheckedInc(index)) {
+            activeIndex = depositedPools.at(index);
+            (uint256 amount, , , ) = IAceLab(aceLab).userInfo(activeIndex, address(this));
             if (amount != 0) {
-                IAceLab(aceLab).emergencyWithdraw(index);
-                poolXBOOBalance[index] = 0;
+                IAceLab(aceLab).emergencyWithdraw(activeIndex);
+                poolXBOOBalance[activeIndex] = 0;
             }
         }
+
+        IMagicatsHandler(magicatsHandler).massUnstakeMagicats();
+
         totalPoolBalance = IAceLab(aceLab).balanceOf(address(this));
         uint256 XBOOBalance = XBOO.balanceOf(address(this));
         XBOO.leave(XBOOBalance);
@@ -514,7 +515,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
         uint256 poolID,
         uint256[] memory IDsToStake,
         uint256[] memory IDsToUnstake
-    ) external {
+    ) public {
         _atLeastRole(MAGICATS_HANDLER);
         if (IDsToUnstake.length > 0) {
             IAceLab(aceLab).withdraw(poolID, 0, IDsToUnstake);
@@ -528,17 +529,16 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
     /**
      * @dev external function for updating the magicatHandler contract
      * @param handler - the address of the new Handler
+     * todo - tess IFF magicats have been withdrawn back to magicatHandler, then strategy will leave them there
+     * Since that only happens in the case where we do not want the strategy to have access to magicats,
+     * we do not pull them back to the strategy when updating, otherwise the strategy maintains custody over the magicats.
+     * In this case, we either have them idle in the strategy or deposited in Acelab for boosting, the seemless transition will have to
+     * be programmed into the next magicats handler and will accept v1 rfMagicats in exchange for the NFTs
+     *
      */
     function updateMagicatsHandler(address handler) external {
-        // TODO goober make this ADMIN or higher
-        // and make magicat custody transition seamless
-        // for magicats that are currently in the old handler, strategy will take custody
-        // for magicats that are staked or in strategy, we don't need to do anything
-        // since we're revoking approvalForAll for the old handler anyway
-        _atLeastRole(STRATEGIST);
+        _atLeastRole(DEFAULT_ADMIN_ROLE);
         if (magicatsHandler != address(0)) {
-            IMagicatsHandler(magicatsHandler).massUnstakeMagicats();
-            IMagicatsHandler(magicatsHandler).withdrawAllMagicatsFromStrategy();
             IERC721Upgradeable(MAGICATS).setApprovalForAll(magicatsHandler, false);
             revokeRole(MAGICATS_HANDLER, magicatsHandler);
         }
@@ -604,13 +604,16 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
     function migrateNewAcelab(address _aceLab, uint256 _defaultPool) external {
         _atLeastRole(DEFAULT_ADMIN_ROLE);
         require(_aceLab != address(0));
-        _reclaimWant(); // TODO goober move massUnstakeMAgicats inside _reclaimWAnt
-        IMagicatsHandler(magicatsHandler).massUnstakeMagicats();
+        _reclaimWant();
         _removeAllowances();
         aceLab = _aceLab;
         _giveAllowances();
         setCurrentPoolId(_defaultPool);
-        // TODO goober restake magicats into default pool momentarily
+        updateMagicats(
+            _defaultPool,
+            IMagicatsHandler(magicatsHandler).getDepositableMagicats(address(this)),
+            new uint256[](0)
+        );
         deposit();
     }
 

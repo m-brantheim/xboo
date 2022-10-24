@@ -124,13 +124,13 @@ contract MagicatsHandler is AccessControlEnumerable, ERC721Enumerable {
             totalMp -= idToMagicat[magicatsIds[i]].manapoints;
             _burn(magicatsIds[i]);
 
-            uint256 stakedPoolId = magicatIdToStakedPid[magicatsIds[i]];     
+            uint256 stakedPoolId = magicatIdToStakedPid[magicatsIds[i]];
             delete idToMagicat[magicatsIds[i]];
             delete magicatIdToStakedPid[magicatsIds[i]];
 
             address currentOwner = IERC721(MAGICATS).ownerOf(magicatsIds[i]);
 
-            if (currentOwner == ACELAB) {       
+            if (currentOwner == ACELAB) {
                 uint256[] memory unstake = new uint256[](1);
                 unstake[0] = magicatsIds[i];
                 _updateStakedMagicats(stakedPoolId, new uint256[](0), unstake);
@@ -288,7 +288,7 @@ contract MagicatsHandler is AccessControlEnumerable, ERC721Enumerable {
      * can be called by keeper for hard reset of staked NFTs for large repositioning as
      * management of nfts can be quite difficult to when doing large amounts of unstake-restaking
      */
-    function massUnstakeMagicats() external {
+    function massUnstakeMagicats() public {
         _atLeastRole(KEEPER);
         for (uint256 i = 0; i < IAceLab(ACELAB).poolLength(); i = _uncheckedInc(i)) {
             uint256[] memory stakedIds = IAceLab(ACELAB).getStakedMagicats(i, strategy);
