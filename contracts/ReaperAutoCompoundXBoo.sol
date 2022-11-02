@@ -534,10 +534,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
      */
     function updateMagicatsHandler(address handler) external {
         _atLeastRole(DEFAULT_ADMIN_ROLE);
-        if (magicatsHandler != address(0)) {
-            IERC721Upgradeable(MAGICATS).setApprovalForAll(magicatsHandler, false);
-            revokeRole(MAGICATS_HANDLER, magicatsHandler);
-        }
+        require(magicatsHandler == address(0));
         grantRole(MAGICATS_HANDLER, handler);
         magicatsHandler = handler;
         _approveMagicatsFor(magicatsHandler);
