@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPLv3
+
 pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
@@ -69,8 +71,12 @@ contract MagicatsHandlerUpgradeable is
      */
     mapping(uint256 => Magicat) public idToMagicat;
     mapping(uint256 => uint256) public magicatIdToStakedPid;
+
     // address of the strategy the magicatsHandler hooks into
     address public strategy;
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() initializer {}
 
     function initialize(
         address _strategy,
@@ -394,10 +400,10 @@ contract MagicatsHandlerUpgradeable is
      *      - in initialize()
      *      - as part of a successful upgrade
      *      - manually to clear the upgrade cooldown.
-     * Guardian and roles with higher privilege can clear this cooldown.
+     * Admin and roles with higher privilege can clear this cooldown.
      */
     function clearUpgradeCooldown() public {
-        _atLeastRole(STRATEGIST);
+        _atLeastRole(ADMIN);
         upgradeProposalTime = block.timestamp + (ONE_YEAR * 100);
     }
 
