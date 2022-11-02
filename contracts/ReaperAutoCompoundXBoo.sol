@@ -532,7 +532,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
      * be programmed into the next magicats handler and will accept v1 rfMagicats in exchange for the NFTs
      *
      */
-    function updateMagicatsHandler(address handler) external {
+    function setMagicatsHandler(address handler) external {
         _atLeastRole(DEFAULT_ADMIN_ROLE);
         require(magicatsHandler == address(0));
         grantRole(MAGICATS_HANDLER, handler);

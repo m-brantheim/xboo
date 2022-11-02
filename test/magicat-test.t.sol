@@ -32,7 +32,7 @@ contract magicatTest is xBooTest {
         handler.initialize(address(XbooStrat), address(vault), strategists, msRoles);
 
         vm.label(address(handler), "handler");
-        XbooStrat.updateMagicatsHandler(address(handler));
+        XbooStrat.setMagicatsHandler(address(handler));
 
         vm.startPrank(user1);
         uint256 startingBalance = Boo.balanceOf(user1);
