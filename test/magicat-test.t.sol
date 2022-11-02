@@ -3,26 +3,35 @@ pragma solidity ^0.8.0;
 import "forge-std/Test.sol";
 import "../contracts/ReaperAutoCompoundXBoo.sol";
 import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import "../contracts/MagicatsHandler.sol";
+import "../contracts/magicatsHandler_UPGRADEABLE.sol";
 import "../contracts/ReaperVaultv1_3.sol";
 import "./abstracts/XbooConstants.t.sol";
 import "./xboo-test.t.sol";
 
 contract magicatTest is xBooTest {
-    MagicatsHandler handler;
+    MagicatsHandlerUpgradeable handler;
+    MagicatsHandlerUpgradeable handlerIMPL;
+    ERC1967Proxy handlerProxy;
+
+
 
     function setUp() public override {
         xBooTest.setUp();
 
-        address[] memory msRoles = new address[](2);
-        msRoles[0] = address(0xb0C9D5851deF8A2Aac4A23031CA2610f8C3483F9);
-        msRoles[1] = address(1337);
+        address msRoles = address(0xb0C9D5851deF8A2Aac4A23031CA2610f8C3483F9);
         address[] memory strategists = new address[](1);
         strategists[0] = address(0xb0C9D5851deF8A2Aac4A23031CA2610f8C3483F9);
 
-        handler = new MagicatsHandler(address(XbooStrat), address(vault), strategists, msRoles);
+        
+        handlerIMPL = new MagicatsHandlerUpgradeable();
+        handlerProxy = new ERC1967Proxy(
+            address(handlerIMPL),
+            ""
+        );
+        handler = MagicatsHandlerUpgradeable(address(handlerProxy));
+        handler.initialize(address(XbooStrat), address(vault), strategists, msRoles);
 
-        vm.label(address(handler), "catHandler");
+        vm.label(address(handler), "handler");
         XbooStrat.updateMagicatsHandler(address(handler));
 
         vm.startPrank(user1);
@@ -44,6 +53,7 @@ contract magicatTest is xBooTest {
 
         IMagicat(currentMagicats).setApprovalForAll(address(handler), true);
         handler.deposit(ownedMagicats);
+        console.log("here");
 
         //should not be able to deposit already desposited nfts
         vm.expectRevert("ERC721: transfer caller is not owner nor approved");
@@ -121,85 +131,6 @@ contract magicatTest is xBooTest {
         handler.withdraw(subArray);
     }
 
-    function testMagicatHandlerMigration() public {
-        MagicatsHandler handler2;
-        address[] memory msRoles = new address[](2);
-        msRoles[0] = address(0xb0C9D5851deF8A2Aac4A23031CA2610f8C3483F9);
-        msRoles[1] = address(1337);
-        address[] memory strategists = new address[](1);
-        strategists[0] = address(0xb0C9D5851deF8A2Aac4A23031CA2610f8C3483F9);
-
-        handler2 = new MagicatsHandler(address(XbooStrat), address(vault), strategists, msRoles);
-
-        vm.label(address(handler2), "new handler");
-
-        address magicatOwner = 0x60BC5E0440C867eEb4CbcE84bB1123fad2b262B1;
-        vm.startPrank(magicatOwner);
-        uint256[] memory ownedMagicats = handler.getDepositableMagicats(magicatOwner);
-        IMagicat(currentMagicats).setApprovalForAll(address(handler), true);
-        handler.deposit(ownedMagicats);
-        vm.stopPrank();
-
-        setMagicatAllocations();
-
-        uint256 iterations = 10;
-        uint256 apr;
-        uint256 time = uint256(block.timestamp);
-        for (uint256 i = 0; i < iterations; i++) {
-            vm.warp(time += 13 hours);
-            XbooStrat.harvest();
-        }
-        uint256[] memory tempArray = new uint256[](1);
-        uint256[] memory tempArray2 = new uint256[](1);
-        tempArray[0] = ownedMagicats[0];
-        tempArray2[0] = ownedMagicats[1];
-        vm.prank(magicatOwner);
-        handler.withdraw(tempArray);
-
-
-
-
-        vm.startPrank(0xb0C9D5851deF8A2Aac4A23031CA2610f8C3483F9);
-        XbooStrat.updateMagicatsHandler(address(handler2));
-        vm.stopPrank();
-
-        vm.startPrank(magicatOwner);
-        //uint256[] memory ownedMagicats = handler.getDepositableMagicats(magicatOwner);
-
-        //assert that user cannot withdraw from old handler 
-        vm.expectRevert();
-        handler.withdraw(tempArray2);
-
-        //test that depositing into new one works seemlessly
-        IMagicat(currentMagicats).setApprovalForAll(address(handler2), true);
-        handler2.deposit(tempArray);
-        vm.stopPrank();
-
-        setMagicatAllocations(handler2);
-
-        for (uint256 i = 0; i < iterations; i++) {
-            vm.warp(time += 13 hours);
-            XbooStrat.harvest();
-        }
-
-        uint256 userStartingVaultShares = vault.balanceOf(magicatOwner);
-        uint256 dueRewardsForAllCats = handler2.getMagicatRewards(tempArray);
-
-        vm.startPrank(magicatOwner);
-        //Assert that helper function returns the same amount as the amount claimed
-        handler2.claimRewards(tempArray);
-        uint256 afterClaimingVaultShares = vault.balanceOf(magicatOwner);
-
-        assertEq(dueRewardsForAllCats, afterClaimingVaultShares - userStartingVaultShares);
-
-        handler2.withdraw(tempArray);
-
-        //assert that redepositing between harvests does not double rewards
-        handler2.deposit(tempArray);
-        uint256 temp = handler2.getMagicatRewards(tempArray);
-        assertEq(0, temp);
-    }
-
     function setMagicatAllocations() public {
         uint256 aceLabBalanceBeforeAllocation = IMagicat(currentMagicats).balanceOf(address(currentAceLab));
 
@@ -219,7 +150,7 @@ contract magicatTest is xBooTest {
         console.log("acelab nft after before allocation %s", aceLabBalanceAfterAllocation);
     }
 
-    function setMagicatAllocations(MagicatsHandler _handler) public {
+    function setMagicatAllocations(MagicatsHandlerUpgradeable _handler) public {
         uint256 aceLabBalanceBeforeAllocation = IMagicat(currentMagicats).balanceOf(address(currentAceLab));
 
         vm.startPrank(0xb0C9D5851deF8A2Aac4A23031CA2610f8C3483F9);

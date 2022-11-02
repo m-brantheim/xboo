@@ -18,8 +18,8 @@ import "./interfaces/IVault.sol";
 contract MagicatsHandlerUpgradeable is
     AccessControlEnumerableUpgradeable,
     ERC721EnumerableUpgradeable,
-    UUPSUpgradeable {
-
+    UUPSUpgradeable
+{
     bytes32 public constant KEEPER = keccak256("KEEPER");
     bytes32 public constant STRATEGIST = keccak256("STRATEGIST");
     bytes32 public constant STRATEGY = keccak256("STRATEGY");
@@ -32,19 +32,17 @@ contract MagicatsHandlerUpgradeable is
 
     address aceLab; //= 0x399D73bB7c83a011cD85DF2a3CdF997ED3B3439f;
     address public constant Magicats = 0x2aB5C606a5AA2352f8072B9e2E8A213033e2c4c9;
-    IBooMirrorWorld public constant xBoo =
-        IBooMirrorWorld(0xa48d959AE2E88f1dAA7D5F611E01908106dE7598); // xBoo
-    IERC20Upgradeable public constant Boo =
-        IERC20Upgradeable (0x841FAD6EAe12c286d1Fd18d1d525DFfA75C7EFFE); // Boo
+    IBooMirrorWorld public constant xBoo = IBooMirrorWorld(0xa48d959AE2E88f1dAA7D5F611E01908106dE7598); // xBoo
+    IERC20Upgradeable public constant Boo = IERC20Upgradeable(0x841FAD6EAe12c286d1Fd18d1d525DFfA75C7EFFE); // Boo
 
     address public vault;
     /***
      * @dev Struct used for internal accounting of deposited Magicats
      * {magicatId} - the Id of the deposited magicat
      * {manapoints} - the associated manapoints of the magicat, used for determining share of rewards
-     * {lastHarvestClaimed} - position in array of last claimed rewards, initalized as the length of the array 
+     * {lastHarvestClaimed} - position in array of last claimed rewards, initalized as the length of the array
      */
-    struct Magicat{
+    struct Magicat {
         uint256 magicatId;
         uint256 manapoints;
         uint256 lastHarvestClaimed;
@@ -55,7 +53,7 @@ contract MagicatsHandlerUpgradeable is
      * {totalManaPoints} - the total amount of manapoints from all deposited magicats
      * {timestamp} - block timestamp of harvest, used for calculating apr
      */
-    struct Harvest{
+    struct Harvest {
         uint256 amount;
         uint256 totalManaPoints;
         uint256 timestamp;
@@ -75,19 +73,17 @@ contract MagicatsHandlerUpgradeable is
     // address of the strategy the magicatsHandler hooks into
     address strategy;
 
-
     function initialize(
-         address _strategy, 
+        address _strategy,
         address _vault,
         address[] memory _strategists,
         address _multisig
-    ) public initializer{
+    ) public initializer {
         __UUPSUpgradeable_init();
         __AccessControlEnumerable_init();
         __ERC721_init("Reaper Magicats", "rfMagicats");
 
-
-
+        aceLab = 0x399D73bB7c83a011cD85DF2a3CdF997ED3B3439f;
         strategy = _strategy;
         _grantRole(STRATEGY, strategy);
         _approveMagicatsFor(strategy);
@@ -102,15 +98,16 @@ contract MagicatsHandlerUpgradeable is
 
         cascadingAccess = [ADMIN, STRATEGY, STRATEGIST, KEEPER];
     }
+
     /***
      * @notice deposit function for Magicat NFTs
      * @param magicatsIds - array of NFT ids to deposit
      * @dev creates a mirrored NFT of the deposit that allows for claiming rewards
      * as well as reclaiming of deposited NFT. Sends NFTs directly to strategy
      */
-    function deposit(uint256[] memory magicatsIds) external{
+    function deposit(uint256[] memory magicatsIds) external {
         Magicat memory deposited;
-        for(uint i; i < magicatsIds.length; i = _uncheckedInc(i)){
+        for (uint256 i; i < magicatsIds.length; i = _uncheckedInc(i)) {
             deposited.magicatId = magicatsIds[i];
             deposited.manapoints = IAceLab(aceLab).rarityOf(magicatsIds[i]);
             deposited.lastHarvestClaimed = harvests.length;
@@ -121,13 +118,8 @@ contract MagicatsHandlerUpgradeable is
             IERC721Upgradeable(Magicats).safeTransferFrom(msg.sender, strategy, magicatsIds[i]);
 
             _safeMint(msg.sender, magicatsIds[i]);
-
         }
-        _updateStakedMagicats(
-            IStrategy(strategy).currentPoolId(),
-            magicatsIds,
-            new uint256[](0)
-        );
+        _updateStakedMagicats(IStrategy(strategy).currentPoolId(), magicatsIds, new uint256[](0));
     }
 
     /***
@@ -135,39 +127,36 @@ contract MagicatsHandlerUpgradeable is
      * @param magicatsIds - array of NFTs to withdraw
      * @dev rewards are forcefully claimed for all withdrawn nfts because they would be lost in limbo otherwise
      * this also burns the underlying nft.
-     * 
+     *
      * this function accounts for a possible case where this particular version of the magicatsHandler is retired from use,
      * in this case, the NFTs are not in the strategy anymore but back in this contract for safe retrieval by their rightful owners
      */
-    function withdraw(uint256[] memory magicatsIds) external{
+    function withdraw(uint256[] memory magicatsIds) external {
         claimRewards(magicatsIds);
-        for(uint i; i < magicatsIds.length; i = _uncheckedInc(i)){
+        for (uint256 i; i < magicatsIds.length; i = _uncheckedInc(i)) {
             require(_isApprovedOrOwner(msg.sender, magicatsIds[i]), "!approved");
             totalMp -= idToMagicat[magicatsIds[i]].manapoints;
 
-            if(IERC721Upgradeable(Magicats).ownerOf(magicatsIds[i]) == strategy){
+            if (IERC721Upgradeable(Magicats).ownerOf(magicatsIds[i]) == strategy) {
                 _burn(magicatsIds[i]);
-  
             }
-            if (IERC721Upgradeable(Magicats).ownerOf(magicatsIds[i]) == aceLab){
+            if (IERC721Upgradeable(Magicats).ownerOf(magicatsIds[i]) == aceLab) {
                 _burn(magicatsIds[i]);
-                uint[] memory unstake = new uint[](1);
+                uint256[] memory unstake = new uint256[](1);
                 unstake[0] = magicatsIds[i];
                 _updateStakedMagicats(magicatIdToStakedPid[magicatsIds[i]], new uint256[](0), unstake);
-  
             }
 
             delete idToMagicat[magicatsIds[i]];
             delete magicatIdToStakedPid[magicatsIds[i]];
-            
-            if(IERC721Upgradeable(Magicats).ownerOf(magicatsIds[i]) == address(this)){
+
+            if (IERC721Upgradeable(Magicats).ownerOf(magicatsIds[i]) == address(this)) {
                 _burn(magicatsIds[i]);
                 IERC721Upgradeable(Magicats).transferFrom(address(this), msg.sender, magicatsIds[i]);
                 continue;
             }
 
             IERC721Upgradeable(Magicats).transferFrom(strategy, msg.sender, magicatsIds[i]);
-
         }
     }
 
@@ -177,19 +166,28 @@ contract MagicatsHandlerUpgradeable is
      * @param IDsToStake the magicatIds to Stake
      * @param IDsToUnstake the magicatIds to unstake
      */
-    function _updateStakedMagicats(uint poolID, uint[] memory IDsToStake, uint[] memory IDsToUnstake) internal{
+    function _updateStakedMagicats(
+        uint256 poolID,
+        uint256[] memory IDsToStake,
+        uint256[] memory IDsToUnstake
+    ) internal {
         IStrategy(strategy).updateMagicats(poolID, IDsToStake, IDsToUnstake);
-        for(uint i = 0; i < IDsToStake.length; i = _uncheckedInc(i)){
+        for (uint256 i = 0; i < IDsToStake.length; i = _uncheckedInc(i)) {
             magicatIdToStakedPid[IDsToStake[i]] = poolID;
         }
     }
+
     /***
-     * @notice external function to update the staked magicats 
+     * @notice external function to update the staked magicats
      * @param poolID, the acelab poolID to operate on
      * @param IDsToStake the magicatIds to Stake
-     * @param IDsToUnstake the magicatIds to unstake 
+     * @param IDsToUnstake the magicatIds to unstake
      */
-    function updateStakedMagicats(uint poolID, uint[] memory IDsToStake, uint[] memory IDsToUnstake) external{
+    function updateStakedMagicats(
+        uint256 poolID,
+        uint256[] memory IDsToStake,
+        uint256[] memory IDsToUnstake
+    ) external {
         _atLeastRole(KEEPER);
         _updateStakedMagicats(poolID, IDsToStake, IDsToUnstake);
     }
@@ -198,7 +196,7 @@ contract MagicatsHandlerUpgradeable is
      * @dev function for approving all MagicatNFTs for a specific address,
      * required for operability between strategy and handler
      */
-    function _approveMagicatsFor(address operator) internal{
+    function _approveMagicatsFor(address operator) internal {
         IERC721Upgradeable(Magicats).setApprovalForAll(operator, true);
     }
 
@@ -206,7 +204,7 @@ contract MagicatsHandlerUpgradeable is
      * @notice function for harvesting and redepositing boo into vault
      * writes to harvest log and allows for reward claims
      */
-    function processRewards() external{
+    function processRewards() external {
         Harvest memory latestHarvest;
         uint256 beforeAmount = IERC20Upgradeable(vault).balanceOf(address(this));
         _redepositGains();
@@ -223,23 +221,23 @@ contract MagicatsHandlerUpgradeable is
      */
     function getMagicatReward(uint256 id) public view returns (uint256) {
         uint256 totalHarvests = harvests.length;
-        Magicat memory cat =  idToMagicat[id];
+        Magicat memory cat = idToMagicat[id];
         uint256 magicatShare;
         uint256 unclaimedReward;
-        for(uint i = cat.lastHarvestClaimed; i < totalHarvests; i = _uncheckedInc(i)){
-            magicatShare = harvests[i].amount * cat.manapoints / harvests[i].totalManaPoints;
+        for (uint256 i = cat.lastHarvestClaimed; i < totalHarvests; i = _uncheckedInc(i)) {
+            magicatShare = (harvests[i].amount * cat.manapoints) / harvests[i].totalManaPoints;
             unclaimedReward += magicatShare;
         }
 
-        return unclaimedReward;     
+        return unclaimedReward;
     }
 
     /***
      * @dev front end helper function for calculating the unclaimed rewards of an array of magicatIDs
      */
-    function getMagicatRewards(uint[] memory ids) public view returns (uint256){
+    function getMagicatRewards(uint256[] memory ids) public view returns (uint256) {
         uint256 unclaimedRewards;
-        for(uint i = 0; i < ids.length; i = _uncheckedInc(i)){
+        for (uint256 i = 0; i < ids.length; i = _uncheckedInc(i)) {
             unclaimedRewards += getMagicatReward(ids[i]);
         }
         return unclaimedRewards;
@@ -258,10 +256,10 @@ contract MagicatsHandlerUpgradeable is
     /***
      * @notice function for claiming rewards of an array of IDs
      * @param ids - array of NFT ids to claim rewards for
-     * @dev after claiming 
+     * @dev after claiming
      */
     function claimRewards(uint256[] memory ids) public {
-        for(uint i = 0; i < ids.length; i = _uncheckedInc(i)){
+        for (uint256 i = 0; i < ids.length; i = _uncheckedInc(i)) {
             require(_isApprovedOrOwner(msg.sender, ids[i]), "!approved");
             _claimRewards(ids[i]);
         }
@@ -280,10 +278,10 @@ contract MagicatsHandlerUpgradeable is
      * @notice view function/front-end helper for getting an array of magicat NFTs owned by user {owner}
      * @param owner - the address to query the Magicat balance of
      */
-    function getDepositableMagicats(address owner) public view returns (uint [] memory){
+    function getDepositableMagicats(address owner) public view returns (uint256[] memory) {
         uint256 balance = IMagicat(Magicats).balanceOf(owner);
-        uint256[] memory ids = new uint[](balance);
-        for(uint i = 0; i < balance; i = _uncheckedInc(i)){
+        uint256[] memory ids = new uint256[](balance);
+        for (uint256 i = 0; i < balance; i = _uncheckedInc(i)) {
             ids[i] = IMagicat(Magicats).tokenOfOwnerByIndex(owner, i);
         }
 
@@ -291,29 +289,30 @@ contract MagicatsHandlerUpgradeable is
     }
 
     /***
-     * @notice view function for getting an array of deposited NFTs for an address:{owner} 
+     * @notice view function for getting an array of deposited NFTs for an address:{owner}
      * @param owner - the address to query the internal NFT balance of
      */
-    function getDepositedMagicats(address owner) external view returns (uint [] memory){
+    function getDepositedMagicats(address owner) external view returns (uint256[] memory) {
         uint256 balance = balanceOf(owner);
-        uint256[] memory ids = new uint[](balance);
-         for(uint i = 0; i < balance; i = _uncheckedInc(i)){
+        uint256[] memory ids = new uint256[](balance);
+        for (uint256 i = 0; i < balance; i = _uncheckedInc(i)) {
             ids[i] = tokenOfOwnerByIndex(owner, i);
         }
 
         return ids;
     }
+
     /***
      * @notice external function for iterating through all pools and unstaking all magicats
-     * can be called by keeper for hard reset of staked NFTs for large repositioning as 
+     * can be called by keeper for hard reset of staked NFTs for large repositioning as
      * management of nfts can be quite difficult to when doing large amounts of unstake-restaking
      */
     function massUnstakeMagicats() external {
         _atLeastRole(KEEPER);
-        for(uint256 i = 0; i < IAceLab(aceLab).poolLength(); i = _uncheckedInc(i)){ 
-            uint256[] memory stakedIds = IAceLab(aceLab).getStakedMagicats(i, strategy);           
+        for (uint256 i = 0; i < IAceLab(aceLab).poolLength(); i = _uncheckedInc(i)) {
+            uint256[] memory stakedIds = IAceLab(aceLab).getStakedMagicats(i, strategy);
             uint256[] memory empty;
-            _updateStakedMagicats(i,empty,stakedIds);
+            _updateStakedMagicats(i, empty, stakedIds);
         }
     }
 
@@ -322,12 +321,8 @@ contract MagicatsHandlerUpgradeable is
         uint256 stratBalance = IMagicat(Magicats).balanceOf(strategy);
         uint256[] memory stratIds = new uint256[](stratBalance);
         stratIds = getDepositableMagicats(strategy);
-        for(uint256 i = 0; i < stratBalance; i = _uncheckedInc(i)){
-            IMagicat(Magicats).transferFrom(
-                strategy,
-                address(this),
-                stratIds[i]
-            );
+        for (uint256 i = 0; i < stratBalance; i = _uncheckedInc(i)) {
+            IMagicat(Magicats).transferFrom(strategy, address(this), stratIds[i]);
         }
     }
 
@@ -363,17 +358,18 @@ contract MagicatsHandlerUpgradeable is
         address,
         uint256,
         bytes memory
-    ) external pure returns (bytes4){
+    ) external pure returns (bytes4) {
         return this.onERC721Received.selector;
     }
 
-    function supportsInterface(
-        bytes4 interfaceId
-    ) public view override(ERC721EnumerableUpgradeable, AccessControlEnumerableUpgradeable) returns (bool){
-        return(
-            ERC721EnumerableUpgradeable.supportsInterface(interfaceId) ||
-            AccessControlEnumerableUpgradeable.supportsInterface(interfaceId)
-        );
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        override(ERC721EnumerableUpgradeable, AccessControlEnumerableUpgradeable)
+        returns (bool)
+    {
+        return (ERC721EnumerableUpgradeable.supportsInterface(interfaceId) ||
+            AccessControlEnumerableUpgradeable.supportsInterface(interfaceId));
     }
 
     /// @notice For doing an unchecked increment of an index for gas optimization purposes
@@ -384,7 +380,7 @@ contract MagicatsHandlerUpgradeable is
             return i + 1;
         }
     }
-    
+
     /**
      * @dev This function must be called prior to upgrading the implementation.
      *      It's required to wait UPGRADE_TIMELOCK seconds before executing the upgrade.
@@ -407,8 +403,7 @@ contract MagicatsHandlerUpgradeable is
         upgradeProposalTime = block.timestamp + (ONE_YEAR * 100);
     }
 
-
-     /**
+    /**
      * @dev This function must be overriden simply for access control purposes.
      *      Only ADMIN can upgrade the implementation once the timelock
      *      has passed.
@@ -418,5 +413,4 @@ contract MagicatsHandlerUpgradeable is
         require(upgradeProposalTime + UPGRADE_TIMELOCK < block.timestamp);
         clearUpgradeCooldown();
     }
-
 }

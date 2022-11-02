@@ -115,10 +115,7 @@ contract ReaperVaultv1_3 is ERC20, Ownable, ReentrancyGuard {
 
     function initialize(address _strategy) public onlyOwner returns (bool) {
         require(!initialized, "Contract is already initialized.");
-        require(
-            block.timestamp <= (constructionTime + 1200),
-            "initialization period over, use timelock"
-        );
+        require(block.timestamp <= (constructionTime + 1200), "initialization period over, use timelock");
         strategy = _strategy;
         initialized = true;
         return true;
@@ -130,10 +127,7 @@ contract ReaperVaultv1_3 is ERC20, Ownable, ReentrancyGuard {
      */
 
     function agreeToTerms() public returns (bool) {
-        require(
-            !hasReadAndAcceptedTerms[msg.sender],
-            "you have already accepted the terms"
-        );
+        require(!hasReadAndAcceptedTerms[msg.sender], "you have already accepted the terms");
         hasReadAndAcceptedTerms[msg.sender] = true;
         emit TermsAccepted(msg.sender);
         return true;
@@ -145,8 +139,7 @@ contract ReaperVaultv1_3 is ERC20, Ownable, ReentrancyGuard {
      *  and the balance deployed in other contracts as part of the strategy.
      */
     function balance() public view returns (uint256) {
-        return
-            token.balanceOf(address(this)).add(IStrategy(strategy).balanceOf());
+        return token.balanceOf(address(this)).add(IStrategy(strategy).balanceOf());
     }
 
     /**
@@ -164,8 +157,7 @@ contract ReaperVaultv1_3 is ERC20, Ownable, ReentrancyGuard {
      * Returns an uint256 with 18 decimals of how much underlying asset one vault share represents.
      */
     function getPricePerFullShare() public view returns (uint256) {
-        return
-            totalSupply() == 0 ? 1e18 : balance().mul(1e18).div(totalSupply());
+        return totalSupply() == 0 ? 1e18 : balance().mul(1e18).div(totalSupply());
     }
 
     /**
@@ -192,9 +184,7 @@ contract ReaperVaultv1_3 is ERC20, Ownable, ReentrancyGuard {
         token.safeTransferFrom(msg.sender, address(this), _amount);
         uint256 _after = token.balanceOf(address(this));
         _amount = _after.sub(_before);
-        uint256 _amountAfterDeposit = (
-            _amount.mul(PERCENT_DIVISOR.sub(depositFee))
-        ).div(PERCENT_DIVISOR);
+        uint256 _amountAfterDeposit = (_amount.mul(PERCENT_DIVISOR.sub(depositFee))).div(PERCENT_DIVISOR);
         uint256 shares = 0;
         if (totalSupply() == 0) {
             shares = _amountAfterDeposit;
@@ -252,10 +242,7 @@ contract ReaperVaultv1_3 is ERC20, Ownable, ReentrancyGuard {
      * @param _implementation The address of the candidate strategy.
      */
     function proposeStrat(address _implementation) public onlyOwner {
-        stratCandidate = StratCandidate({
-            implementation: _implementation,
-            proposedTime: block.timestamp
-        });
+        stratCandidate = StratCandidate({implementation: _implementation, proposedTime: block.timestamp});
         emit NewStratCandidate(_implementation);
     }
 
@@ -285,14 +272,8 @@ contract ReaperVaultv1_3 is ERC20, Ownable, ReentrancyGuard {
      */
 
     function upgradeStrat() public onlyOwner {
-        require(
-            stratCandidate.implementation != address(0),
-            "There is no candidate"
-        );
-        require(
-            stratCandidate.proposedTime.add(approvalDelay) < block.timestamp,
-            "Delay has not passed"
-        );
+        require(stratCandidate.implementation != address(0), "There is no candidate");
+        require(stratCandidate.proposedTime.add(approvalDelay) < block.timestamp, "Delay has not passed");
 
         emit UpgradeStrat(stratCandidate.implementation);
 
