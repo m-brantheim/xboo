@@ -117,7 +117,7 @@ abstract contract ReaperBaseStrategyv3 is
         totalFee = 450;
         callFee = 1000;
         treasuryFee = 9000;
-        strategistFee = 2500;
+        strategistFee = 0;
         securityFee = 0;
 
         vault = _vault;
