@@ -82,7 +82,7 @@ contract MagicatsHandlerUpgradeable is
         address _strategy,
         address _vault,
         address[] memory _strategists,
-        address _multisig
+        address[] memory _multisigRoles
     ) public initializer {
         __UUPSUpgradeable_init();
         __AccessControlEnumerable_init();
@@ -93,14 +93,15 @@ contract MagicatsHandlerUpgradeable is
         _approveMagicatsFor(strategy);
         vault = _vault;
 
-        _grantRole(ADMIN, msg.sender);
-        _grantRole(ADMIN, _multisig);
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(DEFAULT_ADMIN_ROLE, _multisigRoles[0]);
+        _grantRole(ADMIN, _multisigRoles[1]);
 
         for (uint256 i = 0; i < _strategists.length; i = _uncheckedInc(i)) {
             _grantRole(STRATEGIST, _strategists[i]);
         }
 
-        cascadingAccess = [ADMIN, STRATEGY, STRATEGIST, KEEPER];
+        cascadingAccess = [DEFAULT_ADMIN_ROLE, ADMIN, STRATEGY, STRATEGIST, KEEPER];
     }
 
     /***
