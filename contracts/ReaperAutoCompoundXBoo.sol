@@ -88,6 +88,13 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
     mapping(uint256 => RewardHandler) public idToSpecialHandler;
 
     /**
+     * @dev Variables for off-chain bot
+     * {lastAllocationTimestamp} - The block.timestamp of the most recent call to setXBooAllocations
+     * allowing the bot not to make unecessary re-allocations
+     */
+    uint256 public lastAllocationTimestamp;
+
+    /**
      * @dev Initializes the strategy. Sets parameters, saves routes, and gives allowances.
      * @notice see documentation for each variable above its respective declaration.
      */
@@ -220,6 +227,8 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
             uint256 depositAmount = _getMin(XBOOAvailable, depositAmounts[i]);
             _aceLabDeposit(depositPoolIds[i], depositAmount);
         }
+
+        lastAllocationTimestamp = block.timestamp;
     }
 
     /**

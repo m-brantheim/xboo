@@ -75,6 +75,13 @@ contract MagicatsHandlerUpgradeable is
     // address of the strategy the magicatsHandler hooks into
     address public strategy;
 
+    /**
+     * @dev Variables for off-chain bot
+     * {lastAllocationTimestamp} - The block.timestamp of the most recent call to updateStakedMagicats
+     * allowing the bot not to make unecessary re-allocations
+     */
+    uint256 public lastAllocationTimestamp;
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() initializer {}
 
@@ -176,6 +183,7 @@ contract MagicatsHandlerUpgradeable is
         for (uint256 i = 0; i < IDsToStake.length; i = _uncheckedInc(i)) {
             magicatIdToStakedPid[IDsToStake[i]] = poolID;
         }
+        lastAllocationTimestamp = block.timestamp;
     }
 
     /***
