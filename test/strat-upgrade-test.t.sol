@@ -60,4 +60,31 @@ contract ProductionStrategyUpgrade is XbooConstants {
         console.log("lastAllocation: ", lastAllocation);
         assertEq(lastAllocation, block.timestamp);
     }
+
+    function testStrategyProductionUpgradeHarvestValidity() public {
+        uint256 callerFee = currentStrat.harvest();
+        console.log("callerFee: ", callerFee);
+        assertGe(callerFee, 0);
+
+        uint256 time = uint256(block.timestamp);
+        vm.warp(time + 24 hours);
+
+        vm.startPrank(0xe1610bB38Ce95254dD77cbC82F9c1148569B560e);
+        currentStrat.upgradeTo(address(newStrat));
+        vm.stopPrank();
+
+        vm.expectRevert();
+        currentStrat.harvest();
+
+        address keeper = makeAddr("keeper");
+        vm.startPrank(0xe1610bB38Ce95254dD77cbC82F9c1148569B560e);
+        bytes32 keeperRole = 0x71a9859d7dd21b24504a6f306077ffc2d510b4d4b61128e931fe937441ad1836;
+        currentStrat.grantRole(keeperRole, keeper);
+        vm.stopPrank();
+        vm.startPrank(keeper);
+
+        callerFee = currentStrat.harvest();
+        console.log("callerFee: ", callerFee);
+        assertGe(callerFee, 0);
+    }
 }
