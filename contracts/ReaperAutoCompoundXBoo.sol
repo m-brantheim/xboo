@@ -95,6 +95,12 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
     uint256 public lastAllocationTimestamp;
 
     /**
+     * @dev Variable for contract upgrade
+     * {v2UpgradeCompleted} - If the one time upgrade function has run or not
+     */
+    bool public v2UpgradeCompleted = false;
+
+    /**
      * @dev Initializes the strategy. Sets parameters, saves routes, and gives allowances.
      * @notice see documentation for each variable above its respective declaration.
      */
@@ -238,10 +244,10 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
      * 3. It swaps the {WFTM} token for {BOO} which is deposited into {XBOO}
      * 4. It distributes the XBOO using a yield optimization algorithm into various pools.
      */
-    function _harvestCore() internal override returns (uint256 callerFee) {
+    function _harvestCore() internal override returns (uint256 feeCharged) {
         _claimAllRewards();
         uint256 catBoostPercentage = _processRewards();
-        callerFee = _chargeFees();
+        feeCharged = _chargeFees();
         _swapWFTMToBOO();
         if (magicatsHandler != address(0) && catBoostPercentage != 0) {
             _payMagicatDepositors(catBoostPercentage);
@@ -337,7 +343,7 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
      * callFeeToUser is set as a percentage of the fee,
      * as is treasuryFeeToVault
      */
-    function _chargeFees() internal returns (uint256 callFeeToUser) {
+    function _chargeFees() internal returns (uint256 feeCharged) {
         uint256 WFTMFee = (IERC20Upgradeable(WFTM).balanceOf(address(this)) * totalFee) / PERCENT_DIVISOR;
         if (WFTMFee != 0) {
             IUniswapRouterETH(UNIROUTER).swapExactTokensForTokensSupportingFeeOnTransferTokens(
@@ -347,12 +353,9 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
                 address(this),
                 block.timestamp
             );
-            uint256 USDCBal = IERC20Upgradeable(USDC).balanceOf(address(this));
-            callFeeToUser = (USDCBal * callFee) / PERCENT_DIVISOR;
-            uint256 treasuryFeeToVault = (USDCBal * treasuryFee) / PERCENT_DIVISOR;
+            feeCharged = IERC20Upgradeable(USDC).balanceOf(address(this));
 
-            IERC20Upgradeable(USDC).safeTransfer(msg.sender, callFeeToUser);
-            IERC20Upgradeable(USDC).safeTransfer(treasury, treasuryFeeToVault);
+            IERC20Upgradeable(USDC).safeTransfer(treasury, feeCharged);
         }
     }
 
@@ -440,8 +443,6 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
             poolXBOOBalance[currentDepositedPoolId] = 0;
             depositedPools.remove(currentDepositedPoolId);
         }
-
-        IMagicatsHandler(magicatsHandler).massUnstakeMagicats();
 
         uint256 XBOOBalance = XBOO.balanceOf(address(this));
         XBOO.leave(XBOOBalance);
@@ -646,6 +647,18 @@ contract ReaperAutoCompoundXBoov2 is ReaperBaseStrategyv3, IERC721ReceiverUpgrad
             min = _a;
         } else {
             min = _b;
+        }
+    }
+
+    // One-time function to modify state post-V2 upgrade
+    function completeV2Upgrade(address[] memory _keepers) external {
+        _atLeastRole(STRATEGIST);
+        require(!v2UpgradeCompleted, "V2 upgrade has already been completed");
+        v2UpgradeCompleted = true;
+        address keeper;
+        for (uint256 index = 0; index < _keepers.length; index = _uncheckedInc(index)) {
+            keeper = _keepers[index];
+            grantRole(KEEPER, keeper);
         }
     }
 }

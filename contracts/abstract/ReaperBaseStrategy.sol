@@ -157,6 +157,9 @@ abstract contract ReaperBaseStrategyv3 is
         require(_amount != 0);
         require(_amount <= balanceOf());
 
+        uint256 withdrawFee = (_amount * securityFee) / PERCENT_DIVISOR;
+        _amount -= withdrawFee;
+
         _withdraw(_amount);
     }
 
