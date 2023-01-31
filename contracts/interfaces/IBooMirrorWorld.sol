@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 
 pragma solidity 0.8.9;
 
-interface IBooMirrorWorld is IERC20 {
+interface IBooMirrorWorld is IERC20Upgradeable {
     // Locks Boo and mints xBoo
     function enter(uint256 _amount) external;
 
@@ -12,20 +12,11 @@ interface IBooMirrorWorld is IERC20 {
     function leave(uint256 _share) external;
 
     // returns the total amount of BOO an address has in the contract including fees earned
-    function BOOBalance(address _account)
-        external
-        view
-        returns (uint256 booAmount_);
+    function BOOBalance(address _account) external view returns (uint256 booAmount_);
 
     // returns how much BOO someone gets for redeeming xBOO
-    function xBOOForBOO(uint256 _xBOOAmount)
-        external
-        view
-        returns (uint256 booAmount_);
+    function xBOOForBOO(uint256 _xBOOAmount) external view returns (uint256 booAmount_);
 
     // returns how much xBOO someone gets for depositing BOO
-    function BOOForxBOO(uint256 _booAmount)
-        external
-        view
-        returns (uint256 xBOOAmount_);
+    function BOOForxBOO(uint256 _booAmount) external view returns (uint256 xBOOAmount_);
 }

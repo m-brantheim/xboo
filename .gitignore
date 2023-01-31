@@ -33,3 +33,6 @@ cache
 artifacts
 
 secrets.json
+
+# Forge output files
+out
