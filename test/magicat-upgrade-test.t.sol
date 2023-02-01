@@ -44,7 +44,8 @@ contract ProductionMagicatUpgrade is XbooConstants {
 
         uint256[] memory args = new uint256[](0);
         uint256 poolID = 0;
-        currentHandler.updateStakedMagicats(poolID, args, args);
+        bool allocationCompleted = true;
+        currentHandler.updateStakedMagicats(poolID, args, args, allocationCompleted);
         lastAllocation = currentHandler.lastAllocationTimestamp();
         console.log("lastAllocation: ", lastAllocation);
         assertEq(lastAllocation, block.timestamp);

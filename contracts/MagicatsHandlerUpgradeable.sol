@@ -183,7 +183,6 @@ contract MagicatsHandlerUpgradeable is
         for (uint256 i = 0; i < IDsToStake.length; i = _uncheckedInc(i)) {
             magicatIdToStakedPid[IDsToStake[i]] = poolID;
         }
-        lastAllocationTimestamp = block.timestamp;
     }
 
     /***
@@ -195,10 +194,15 @@ contract MagicatsHandlerUpgradeable is
     function updateStakedMagicats(
         uint256 poolID,
         uint256[] memory IDsToStake,
-        uint256[] memory IDsToUnstake
+        uint256[] memory IDsToUnstake,
+        bool allocationCompleted
     ) external {
         _atLeastRole(KEEPER);
         _updateStakedMagicats(poolID, IDsToStake, IDsToUnstake);
+
+        if (allocationCompleted) {
+            lastAllocationTimestamp = block.timestamp;
+        }
     }
 
     /***
