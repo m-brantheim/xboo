@@ -20,7 +20,18 @@
 
 const hre = require('hardhat');
 
-async function main() {}
+const upgradeProxy = async () => {
+  const stratFactory = await ethers.getContractFactory('ReaperAutoCompoundXBoov2');
+  await hre.upgrades.upgradeProxy(tusdProxy, stratFactory, { ...options, timeout: 0 });
+  console.log('upgradeProxy');
+};
+async function main() {
+  const proxyADDR = '0xD3BF27E1606dF8Ac80f4Fd3c4faF47b8c31a1021';
+  const MagicatsHandlerUpgradeable = await ethers.getContractFactory('MagicatsHandlerUpgradeable');
+  await hre.upgrades.upgradeProxy(proxyADDR, MagicatsHandlerUpgradeable);
+  console.log("updated");
+
+}
 
 main()
   .then(() => process.exit(0))
