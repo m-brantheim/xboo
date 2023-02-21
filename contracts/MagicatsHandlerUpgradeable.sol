@@ -245,7 +245,7 @@ contract MagicatsHandlerUpgradeable is
             unclaimedReward += magicatShare;
         }
 
-        return unclaimedReward;
+        return unclaimedReward + savedRewards[id];
     }
 
     /***
@@ -265,7 +265,6 @@ contract MagicatsHandlerUpgradeable is
      */
     function _claimRewards(uint256 _id) internal {
         uint256 owed = getMagicatReward(_id);
-        owed += savedRewards[_id];
         delete savedRewards[_id];
         idToMagicat[_id].lastHarvestClaimed = harvests.length;
         IERC20(vault).transfer(msg.sender, owed);
@@ -437,7 +436,7 @@ contract MagicatsHandlerUpgradeable is
 
     function partialClaimRewards(uint256 magicatID, uint256 _harvests) public {
         uint256 totalHarvests = harvests.length;
-        Magicat memory cat = idToMagicat[magicatID];
+        Magicat storage cat = idToMagicat[magicatID];
         uint256 magicatShare;
         uint256 unclaimedReward;
         uint256 lastHarvestClaimed = cat.lastHarvestClaimed;

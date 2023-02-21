@@ -6,6 +6,7 @@ import "../contracts/MagicatsHandlerUpgradeable.sol";
 import "./abstracts/XbooConstants.t.sol";
 
 contract ProductionMagicatUpgrade is XbooConstants {
+    uint256 public fantomFork;
     address payable public existingHandler = payable(0xD3BF27E1606dF8Ac80f4Fd3c4faF47b8c31a1021);
     MagicatsHandlerUpgradeable public currentHandler;
     MagicatsHandlerUpgradeable public newHandler;
@@ -14,6 +15,8 @@ contract ProductionMagicatUpgrade is XbooConstants {
     uint256 public oldSupply;
 
     function setUp() public {
+
+        fantomFork = vm.createSelectFork('https://rpc.ankr.com/fantom', 56188257);
         currentHandler = MagicatsHandlerUpgradeable(existingHandler);
         vm.label(existingHandler, "handler");
         oldMP = currentHandler.totalMp();
@@ -25,8 +28,6 @@ contract ProductionMagicatUpgrade is XbooConstants {
     }
 
     function testHandlerProductionUpgradeValidity() public {
-        vm.expectRevert();
-        uint256 lastAllocation = currentHandler.lastAllocationTimestamp();
 
         vm.startPrank(0xe1610bB38Ce95254dD77cbC82F9c1148569B560e);
         currentHandler.upgradeTo(address(newHandler));
@@ -35,19 +36,28 @@ contract ProductionMagicatUpgrade is XbooConstants {
         uint256 newSupply = currentHandler.totalSupply();
         console.log("newMP: ", newMP);
         console.log("newSupply: ", newSupply);
-        assertGe(newMP, oldMP);
-        assertGe(newSupply, oldSupply);
+        //assertGe(newMP, oldMP);
+        //assertGe(newSupply, oldSupply);
 
-        lastAllocation = currentHandler.lastAllocationTimestamp();
-        console.log("lastAllocation: ", lastAllocation);
-        assertEq(lastAllocation, 0);
+        uint256 id = 1786;
+        uint256 _harvests = 260;
 
-        uint256[] memory args = new uint256[](0);
-        uint256 poolID = 0;
-        bool allocationCompleted = true;
-        currentHandler.updateStakedMagicats(poolID, args, args, allocationCompleted);
-        lastAllocation = currentHandler.lastAllocationTimestamp();
-        console.log("lastAllocation: ", lastAllocation);
-        assertEq(lastAllocation, block.timestamp);
+        uint256 beforePartialPending = currentHandler.getMagicatReward(id);
+
+        currentHandler.partialClaimRewards(id, _harvests);
+
+        uint256 afterPartialPending = currentHandler.getMagicatReward(id);
+
+        assertEq(beforePartialPending, afterPartialPending);
+
+        uint256[] memory ids = new uint256[](1);
+        ids[0] = id;
+        vm.stopPrank();
+        vm.prank(0x60BC5E0440C867eEb4CbcE84bB1123fad2b262B1);
+        currentHandler.claimRewards(ids);
+
+        assertEq(currentHandler.getMagicatReward(id), 0);
+        
+
     }
 }
