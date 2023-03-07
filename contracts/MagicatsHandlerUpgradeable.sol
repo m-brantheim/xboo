@@ -85,6 +85,10 @@ contract MagicatsHandlerUpgradeable is
     //      catID -> savedPendingRewards 
     mapping(uint256 => uint256) public savedRewards;
 
+    bool shouldHarvest;
+
+    uint256 timeBetweenProcesses;
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() initializer {}
 
@@ -134,6 +138,7 @@ contract MagicatsHandlerUpgradeable is
             _safeMint(msg.sender, magicatsIds[i]);
         }
         _updateStakedMagicats(IStrategy(strategy).currentPoolId(), magicatsIds, new uint256[](0));
+        shouldHarvest = true;
     }
 
     /***
@@ -167,6 +172,7 @@ contract MagicatsHandlerUpgradeable is
 
             IERC721Upgradeable(MAGICATS).transferFrom(currentOwner, msg.sender, magicatsIds[i]);
         }
+        shouldHarvest = true;
     }
 
     /***
@@ -221,13 +227,23 @@ contract MagicatsHandlerUpgradeable is
      * writes to harvest log and allows for reward claims
      */
     function processRewards() external {
-        Harvest memory latestHarvest;
-        uint256 beforeAmount = IERC20Upgradeable(vault).balanceOf(address(this));
-        _redepositGains();
-        latestHarvest.amount = IERC20Upgradeable(vault).balanceOf(address(this)) - beforeAmount;
-        latestHarvest.totalManaPoints = totalMp;
-        latestHarvest.timestamp = block.timestamp;
-        harvests.push(latestHarvest);
+        
+        if(_passedTimeToProcess() || shouldHarvest)
+        {
+            Harvest memory latestHarvest;
+            uint256 beforeAmount = IERC20Upgradeable(vault).balanceOf(address(this));
+            _redepositGains();
+            latestHarvest.amount = IERC20Upgradeable(vault).balanceOf(address(this)) - beforeAmount;
+            latestHarvest.totalManaPoints = totalMp;
+            latestHarvest.timestamp = block.timestamp;
+            harvests.push(latestHarvest);
+            shouldHarvest = false;
+        }
+    }
+
+    function _passedTimeToProcess() internal view returns (bool) {
+        uint256 harvestsLength = harvests.length;
+        return block.timestamp - harvests[harvestsLength - 1].timestamp >= timeBetweenProcesses;
     }
 
     /***
@@ -450,5 +466,11 @@ contract MagicatsHandlerUpgradeable is
         }
         savedRewards[magicatID] += unclaimedReward;
         cat.lastHarvestClaimed = lastToClaim;
+    }
+
+    function setTimeBetweenProcesses(uint256 newTime) external {
+        _atLeastRole(STRATEGIST);
+        require(newTime <= 1 days, "time between harvests is too long");
+        timeBetweenProcesses = newTime;
     }
 }
